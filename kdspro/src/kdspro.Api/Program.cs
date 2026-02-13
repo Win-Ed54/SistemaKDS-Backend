@@ -1,44 +1,53 @@
+using kdspro.Domain.Interfaces;
+using kdspro.Infrastructure.Repositories;
+using kdspro.Infrastructure.Persistence;
+using kdspro.Api.Hubs; // 1. Asegúrate de tener este namespace
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+// --- SERVICIOS ---
+builder.Services.AddControllers().AddNewtonsoftJson(); 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+// 2. AGREGAR SIGNALR
+builder.Services.AddSignalR();
+
+// 3. CONFIGURAR CORS (Vital para que React pueda conectarse)
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll", policy =>
+    {
+        policy.WithOrigins("http://localhost:5173") // URL de tu frontend (Vite/React)
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials(); // Obligatorio para SignalR
+    });
+});
+
+builder.Services.AddSingleton<MongoDbContext>();
+builder.Services.AddScoped<IProductRepository, ProductRepository>();
+builder.Services.AddScoped<IOrderRepository, OrderRepository>();
+
+
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// --- PIPELINE ---
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
+// 4. USAR LA POLÍTICA DE CORS (Antes de MapControllers)
+app.UseCors("AllowAll");
+
 app.UseHttpsRedirection();
+app.UseAuthorization();
 
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
+app.MapControllers(); 
 
-app.MapGet("/weatherforecast", () =>
-{
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast")
-.WithOpenApi();
+// 5. MAPEAR EL HUB (El punto de entrada para el socket)
+app.MapHub<OrdersHub>("/ordersHub");
 
 app.Run();
-
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
