@@ -37,16 +37,32 @@ public class OrdersController : ControllerBase
         await _hubContext.Clients.Group("cocina").SendAsync("ReceiveOrder", order);
 
         return Ok(new { message = "Orden enviada a cocina", id = order.Id });
+
     }
 
     [HttpPut("{id}/status")]
     public async Task<IActionResult> UpdateStatus(string id, [FromBody] OrderStatus status)
     {
+        //1. Validar Existencia
+        var existingOrder = await _repository.GetByIdAsync(id);
+        if(existingOrder == null)
+        {
+            return NotFound(new {message = $"La orden con ID{id} no existe"});
+        }
+
         await _repository.UpdateStatusAsync(id, status);
-        
-        // Notificamos a todos que el pedido cambió (ej: de Pendiente a Preparando)
+
+        //Notificamos a la cocina para que el ticket cambie de color o desaparezca
         await _hubContext.Clients.Group("cocina").SendAsync("UpdateOrderStatus", id, status);
         
+        //Opcional: Si el estado es Ready, notificamos al grupo de meseros
+        if(status == OrderStatus.Ready)
+        {
+            await _hubContext.Clients.All.SendAsync("NotifyWaiterOrderReady", id);
+        }
+        
         return NoContent();
+
+        
     }
 }
