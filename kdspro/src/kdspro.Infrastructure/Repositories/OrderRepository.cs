@@ -6,25 +6,20 @@ using kdspro.Domain.Enums;
 
 namespace kdspro.Infrastructure.Repositories;
 
-public class OrderRepository : IOrderRepository
+public class OrderRepository : GenericRepository<Order>, IOrderRepository
 {
-    private readonly IMongoCollection<Order> _orders;
-
-    public OrderRepository(MongoDbContext context)
+    // Pasamos el contexto y el nombre "Orders" a la clase base
+    public OrderRepository(MongoDbContext context) : base(context, "Orders")
     {
-        _orders = context.Orders;
     }
 
-    public async Task<List<Order>> GetAllAsync() => 
-        await _orders.Find(_ => true).ToListAsync();
-
-    public async Task CreateAsync(Order order) => 
-        await _orders.InsertOneAsync(order);
-
-    public async Task UpdateStatusAsync(string id, OrderStatus status)
+    // Método específico de negocio que no es un CRUD genérico
+    public async Task UpdateStatusAsync(string id, OrderStatus status, CancellationToken ct = default)
     {
-        var filter = Builders<Order>.Filter.Eq("_id", id); // O el nombre de tu campo ID
+        var filter = Builders<Order>.Filter.Eq(o => o.Id, id);
         var update = Builders<Order>.Update.Set("Status", status);
-        await _orders.UpdateOneAsync(filter, update);
+        
+        // Usamos _collection que heredamos de GenericRepository
+        await _collection.UpdateOneAsync(filter, update, cancellationToken: ct);
     }
 }

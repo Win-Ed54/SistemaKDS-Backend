@@ -22,9 +22,9 @@ public class OrdersController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<List<Order>>> Get()
+    public async Task<ActionResult<List<Order>>> Get(CancellationToken ct) //se recibe de la peticion web
     {
-        var orders = await _repository.GetAllAsync();
+        var orders = await _repository.GetAllAsync(ct); // lo pasa al repositorio
         return Ok(orders);
     }
 

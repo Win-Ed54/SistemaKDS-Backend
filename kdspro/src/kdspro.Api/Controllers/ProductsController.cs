@@ -1,35 +1,75 @@
-
-using Microsoft.AspNetCore.Mvc;
 using kdspro.Domain.Entities;
 using kdspro.Domain.Interfaces;
+using Microsoft.AspNetCore.Mvc;
 
 namespace kdspro.Api.Controllers;
 
 [ApiController]
-[Route("api/[controller]")] // La URL será: api/products
+[Route("api/[controller]")]
 public class ProductsController : ControllerBase
 {
-    private readonly IProductRepository _repository;
+    private readonly IProductRepository _productRepository;
 
-    // Le pedimos al sistema que nos dé el repositorio que configuramos antes
-    public ProductsController(IProductRepository repository)
+    public ProductsController(IProductRepository productRepository)
     {
-        _repository = repository;
+        _productRepository = productRepository;
     }
 
-    // 1. Endpoint para ver todo el menú
+    // GET: api/products
     [HttpGet]
-    public async Task<ActionResult<List<Product>>> Get()
+    public async Task<ActionResult<List<Product>>> GetAll()
     {
-        var products = await _repository.GetAllAsync();
+        var products = await _productRepository.GetAllAsync();
         return Ok(products);
     }
 
-    // 2. Endpoint para crear un nuevo platillo (Ej: Hamburguesa)
-    [HttpPost]
-    public async Task<IActionResult> Post(Product product)
+    // GET: api/products/{id}
+    [HttpGet("{id}")]
+    public async Task<ActionResult<Product>> GetById(string id)
     {
-        await _repository.CreateAsync(product);
-        return Ok(new { message = "Producto creado exitosamente" });
+        var product = await _productRepository.GetByIdAsync(id);
+        if (product == null) return NotFound();
+        return Ok(product);
+    }
+
+    // POST: api/products
+    [HttpPost]
+    public async Task<ActionResult> Create(Product product)
+    {
+        await _productRepository.CreateAsync(product);
+        return CreatedAtAction(nameof(GetById), new { id = product.Id }, product);
+    }
+
+    // PUT: api/products/{id}
+    [HttpPut("{id}")]
+    public async Task<IActionResult> Update(string id, Product product)
+    {
+        var existing = await _productRepository.GetByIdAsync(id);
+        if (existing == null) return NotFound();
+
+        await _productRepository.UpdateAsync(id, product);
+        return NoContent();
+    }
+
+    // PATCH: api/products/{id}/availability (Para el stock básico)
+    [HttpPatch("{id}/availability")]
+    public async Task<IActionResult> UpdateAvailability(string id, [FromBody] bool isAvailable)
+    {
+        var existing = await _productRepository.GetByIdAsync(id);
+        if (existing == null) return NotFound();
+
+        await _productRepository.UpdateAvailabilityAsync(id, isAvailable);
+        return NoContent();
+    }
+
+    // DELETE: api/products/{id}
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> Delete(string id)
+    {
+        var existing = await _productRepository.GetByIdAsync(id);
+        if (existing == null) return NotFound();
+
+        await _productRepository.DeleteAsync(id);
+        return NoContent();
     }
 }

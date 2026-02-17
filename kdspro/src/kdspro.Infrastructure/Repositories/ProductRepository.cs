@@ -26,4 +26,32 @@ public class ProductRepository : IProductRepository
     {
         await _context.Products.InsertOneAsync(product);
     }
+
+    public async Task UpdateAvailabilityAsync(string id, bool isAvailable)
+    {
+        var filter = Builders<Product>.Filter.Eq(p => p.Id, id);
+        var update = Builders<Product>.Update.Set(p => p.IsAvailable, isAvailable);
+        await _context.Products.UpdateOneAsync(filter, update);
+    }
+     
+     // 1. Obtener por ID
+    public async Task<Product?> GetByIdAsync(string id)
+    {
+        return await _context.Products.Find(p => p.Id == id).FirstOrDefaultAsync();
+    }
+
+     // 2. Actualización completa
+    public async Task UpdateAsync(string id, Product product)
+    {
+        await _context.Products.ReplaceOneAsync(p => p.Id == id, product);
+    }
+
+     // 3. Eliminar
+    public async Task DeleteAsync(string id)
+    {
+       await _context.Products.DeleteOneAsync(p => p.Id == id);
+    }
+
+
+    
 }

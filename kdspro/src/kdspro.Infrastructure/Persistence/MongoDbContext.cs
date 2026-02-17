@@ -8,6 +8,8 @@ public class MongoDbContext
 {
     private readonly IMongoDatabase _database;
 
+    public IMongoDatabase Database => _database;
+
     public MongoDbContext(IConfiguration configuration)
     {
         // Leemos la configuración del appsettings.json

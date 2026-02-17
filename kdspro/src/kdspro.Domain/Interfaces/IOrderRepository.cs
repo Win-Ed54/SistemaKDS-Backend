@@ -1,13 +1,11 @@
 using kdspro.Domain.Entities;
 using kdspro.Domain.Enums;
-using kdspro.Domain.Interfaces;
-
-
+using System.Threading;
 namespace kdspro.Domain.Interfaces;
 
-public interface IOrderRepository
+// Al heredar de IGenericRepository<Order>, ya tienes GetAllAsync, GetByIdAsync y CreateAsync
+public interface IOrderRepository : IGenericRepository<Order>
 {
-    Task<List<Order>> GetAllAsync();
-    Task CreateAsync(Order order);
-    Task UpdateStatusAsync(string id, OrderStatus status); // Para marcar como "Cocinando" o "Listo"
+    // AQUÍ SOLO VA LO QUE NO ES CRUD GENÉRICO
+    Task UpdateStatusAsync(string id, OrderStatus status, CancellationToken ct = default);
 }

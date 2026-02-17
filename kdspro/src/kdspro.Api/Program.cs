@@ -1,7 +1,7 @@
 using kdspro.Domain.Interfaces;
 using kdspro.Infrastructure.Repositories;
 using kdspro.Infrastructure.Persistence;
-using kdspro.Api.Hubs; // 1. Asegúrate de tener este namespace
+using kdspro.Api.Hubs; 
 
 var builder = WebApplication.CreateBuilder(args);
 
