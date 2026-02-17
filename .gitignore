@@ -1,0 +1,28 @@
+ignore
+# --- Directorios de Compilación (.NET) ---
+[Bb]in/
+[Ob]j/
+
+# --- Archivos de Usuario y Configuración Personal ---
+.vs/
+.vscode/
+*.user
+*.userosscache
+*.sln.docstates
+
+# --- Archivos de Configuración de la App (Secretos) ---
+# Se recomienda no subir el appsettings con contraseñas reales
+# appsettings.json
+# appsettings.Development.json
+
+# --- Paquetes y Dependencias ---
+*.nupkg
+.tools/
+.pnpm-debug.log*
+
+# --- Sistema Operativo ---
+.DS_Store
+Thumbs.db
+
+# --- Carpetas de publicación ---
+publish/
