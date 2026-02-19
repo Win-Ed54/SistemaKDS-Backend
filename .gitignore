@@ -1,7 +1,6 @@
-ignore
 # --- Directorios de Compilación (.NET) ---
 [Bb]in/
-[Ob]j/
+[Oo]bj/
 
 # --- Archivos de Usuario y Configuración Personal ---
 .vs/
