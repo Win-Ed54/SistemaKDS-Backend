@@ -18,7 +18,7 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
     {
-        policy.WithOrigins("http://localhost:5173") // URL de tu frontend (Vite/React)
+        policy.WithOrigins("http://localhost:5173", "https://tu-kds-app.vercel.app") // URL de tu frontend (Vite/React) temporales
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials(); // Obligatorio para SignalR
@@ -28,7 +28,6 @@ builder.Services.AddCors(options =>
 builder.Services.AddSingleton<MongoDbContext>();
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
-
 
 var app = builder.Build();
 
