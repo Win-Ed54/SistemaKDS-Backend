@@ -1,4 +1,6 @@
 namespace kdspro.Domain.Entities;
+
+using kdspro.Domain.Enums;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 public class Order
@@ -12,12 +14,13 @@ public class Order
     
     // Fecha y hora exacta (importante para el sistema FIFO: el primero que llega, primero sale)
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-    
-    // Estado: "Pendiente", "Preparando", "Listo"
-    public string Status { get; set; } = "Pendiente";
-    
+
+    // Eliminamos la versión string y usamos solo el Enum
+    // Este atributo guarda el nombre del estado en la BD para que sea legible
     // Una lista de los productos que pidieron
     public List<OrderItem> Items { get; set; } = new();
+
+    public OrderStatus Status  { get; set; } = OrderStatus.Pending;
 }
 
 public class OrderItem
