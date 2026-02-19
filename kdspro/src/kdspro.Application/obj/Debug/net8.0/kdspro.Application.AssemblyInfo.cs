@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("kdspro.Application")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+0bde10e6543f77909ab51675a07aebd60e30633b")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+b615ef006e077a902e654df63fb50dd7ca198d8f")]
 [assembly: System.Reflection.AssemblyProductAttribute("kdspro.Application")]
 [assembly: System.Reflection.AssemblyTitleAttribute("kdspro.Application")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

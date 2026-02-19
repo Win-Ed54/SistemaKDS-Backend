@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "3+nN8UAyBaE=",
+  "dgSpecHash": "RuyTt9iIDmQ=",
   "success": true,
-  "projectFilePath": "C:\\Users\\Grupo B\\Desktop\\Sistema-KDS-Kitchen-Display-System-para-restaurantes---Backend\\kdspro\\src\\kdspro.Infrastructure\\kdspro.Infrastructure.csproj",
+  "projectFilePath": "C:\\Users\\Grupo B\\Desktop\\Sistema-KDS\\Sistema-KDS-Kitchen-Display-System-para-restaurantes---Backend\\kdspro\\src\\kdspro.Infrastructure\\kdspro.Infrastructure.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\Grupo B\\.nuget\\packages\\dnsclient\\1.6.1\\dnsclient.1.6.1.nupkg.sha512",
     "C:\\Users\\Grupo B\\.nuget\\packages\\microsoft.aspnetcore.authentication.abstractions\\2.3.0\\microsoft.aspnetcore.authentication.abstractions.2.3.0.nupkg.sha512",

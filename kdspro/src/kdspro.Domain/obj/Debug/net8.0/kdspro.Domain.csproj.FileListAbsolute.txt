@@ -11,3 +11,16 @@ C:\Users\Grupo B\Desktop\Sistema-KDS-Kitchen-Display-System-para-restaurantes---
 C:\Users\Grupo B\Desktop\Sistema-KDS-Kitchen-Display-System-para-restaurantes---Backend\kdspro\src\kdspro.Domain\obj\Debug\net8.0\refint\kdspro.Domain.dll
 C:\Users\Grupo B\Desktop\Sistema-KDS-Kitchen-Display-System-para-restaurantes---Backend\kdspro\src\kdspro.Domain\obj\Debug\net8.0\kdspro.Domain.pdb
 C:\Users\Grupo B\Desktop\Sistema-KDS-Kitchen-Display-System-para-restaurantes---Backend\kdspro\src\kdspro.Domain\obj\Debug\net8.0\ref\kdspro.Domain.dll
+C:\Users\Grupo B\Desktop\Sistema-KDS\Sistema-KDS-Kitchen-Display-System-para-restaurantes---Backend\kdspro\src\kdspro.Domain\bin\Debug\net8.0\kdspro.Domain.deps.json
+C:\Users\Grupo B\Desktop\Sistema-KDS\Sistema-KDS-Kitchen-Display-System-para-restaurantes---Backend\kdspro\src\kdspro.Domain\bin\Debug\net8.0\kdspro.Domain.dll
+C:\Users\Grupo B\Desktop\Sistema-KDS\Sistema-KDS-Kitchen-Display-System-para-restaurantes---Backend\kdspro\src\kdspro.Domain\bin\Debug\net8.0\kdspro.Domain.pdb
+C:\Users\Grupo B\Desktop\Sistema-KDS\Sistema-KDS-Kitchen-Display-System-para-restaurantes---Backend\kdspro\src\kdspro.Domain\obj\Debug\net8.0\kdspro.Domain.csproj.AssemblyReference.cache
+C:\Users\Grupo B\Desktop\Sistema-KDS\Sistema-KDS-Kitchen-Display-System-para-restaurantes---Backend\kdspro\src\kdspro.Domain\obj\Debug\net8.0\kdspro.Domain.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\Grupo B\Desktop\Sistema-KDS\Sistema-KDS-Kitchen-Display-System-para-restaurantes---Backend\kdspro\src\kdspro.Domain\obj\Debug\net8.0\kdspro.Domain.AssemblyInfoInputs.cache
+C:\Users\Grupo B\Desktop\Sistema-KDS\Sistema-KDS-Kitchen-Display-System-para-restaurantes---Backend\kdspro\src\kdspro.Domain\obj\Debug\net8.0\kdspro.Domain.AssemblyInfo.cs
+C:\Users\Grupo B\Desktop\Sistema-KDS\Sistema-KDS-Kitchen-Display-System-para-restaurantes---Backend\kdspro\src\kdspro.Domain\obj\Debug\net8.0\kdspro.Domain.csproj.CoreCompileInputs.cache
+C:\Users\Grupo B\Desktop\Sistema-KDS\Sistema-KDS-Kitchen-Display-System-para-restaurantes---Backend\kdspro\src\kdspro.Domain\obj\Debug\net8.0\kdspro.Domain.sourcelink.json
+C:\Users\Grupo B\Desktop\Sistema-KDS\Sistema-KDS-Kitchen-Display-System-para-restaurantes---Backend\kdspro\src\kdspro.Domain\obj\Debug\net8.0\kdspro.Domain.dll
+C:\Users\Grupo B\Desktop\Sistema-KDS\Sistema-KDS-Kitchen-Display-System-para-restaurantes---Backend\kdspro\src\kdspro.Domain\obj\Debug\net8.0\refint\kdspro.Domain.dll
+C:\Users\Grupo B\Desktop\Sistema-KDS\Sistema-KDS-Kitchen-Display-System-para-restaurantes---Backend\kdspro\src\kdspro.Domain\obj\Debug\net8.0\kdspro.Domain.pdb
+C:\Users\Grupo B\Desktop\Sistema-KDS\Sistema-KDS-Kitchen-Display-System-para-restaurantes---Backend\kdspro\src\kdspro.Domain\obj\Debug\net8.0\ref\kdspro.Domain.dll

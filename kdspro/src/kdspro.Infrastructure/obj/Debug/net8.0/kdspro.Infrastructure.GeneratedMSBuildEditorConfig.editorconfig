@@ -8,6 +8,6 @@ build_property.PlatformNeutralAssembly =
 build_property.EnforceExtendedAnalyzerRules = 
 build_property._SupportedPlatformList = Linux,macOS,Windows
 build_property.RootNamespace = kdspro.Infrastructure
-build_property.ProjectDir = C:\Users\Grupo B\Desktop\Sistema-KDS-Kitchen-Display-System-para-restaurantes---Backend\kdspro\src\kdspro.Infrastructure\
+build_property.ProjectDir = C:\Users\Grupo B\Desktop\Sistema-KDS\Sistema-KDS-Kitchen-Display-System-para-restaurantes---Backend\kdspro\src\kdspro.Infrastructure\
 build_property.EnableComHosting = 
 build_property.EnableGeneratedComInterfaceComImportInterop = 

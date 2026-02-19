@@ -2727,11 +2727,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\Grupo B\\Desktop\\Sistema-KDS-Kitchen-Display-System-para-restaurantes---Backend\\kdspro\\src\\kdspro.Api\\kdspro.Api.csproj",
+      "projectUniqueName": "C:\\Users\\Grupo B\\Desktop\\Sistema-KDS\\Sistema-KDS-Kitchen-Display-System-para-restaurantes---Backend\\kdspro\\src\\kdspro.Api\\kdspro.Api.csproj",
       "projectName": "kdspro.Api",
-      "projectPath": "C:\\Users\\Grupo B\\Desktop\\Sistema-KDS-Kitchen-Display-System-para-restaurantes---Backend\\kdspro\\src\\kdspro.Api\\kdspro.Api.csproj",
+      "projectPath": "C:\\Users\\Grupo B\\Desktop\\Sistema-KDS\\Sistema-KDS-Kitchen-Display-System-para-restaurantes---Backend\\kdspro\\src\\kdspro.Api\\kdspro.Api.csproj",
       "packagesPath": "C:\\Users\\Grupo B\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\Grupo B\\Desktop\\Sistema-KDS-Kitchen-Display-System-para-restaurantes---Backend\\kdspro\\src\\kdspro.Api\\obj\\",
+      "outputPath": "C:\\Users\\Grupo B\\Desktop\\Sistema-KDS\\Sistema-KDS-Kitchen-Display-System-para-restaurantes---Backend\\kdspro\\src\\kdspro.Api\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\Grupo B\\AppData\\Roaming\\NuGet\\NuGet.Config"
@@ -2746,14 +2746,14 @@
         "net8.0": {
           "targetAlias": "net8.0",
           "projectReferences": {
-            "C:\\Users\\Grupo B\\Desktop\\Sistema-KDS-Kitchen-Display-System-para-restaurantes---Backend\\kdspro\\src\\kdspro.Application\\kdspro.Application.csproj": {
-              "projectPath": "C:\\Users\\Grupo B\\Desktop\\Sistema-KDS-Kitchen-Display-System-para-restaurantes---Backend\\kdspro\\src\\kdspro.Application\\kdspro.Application.csproj"
+            "C:\\Users\\Grupo B\\Desktop\\Sistema-KDS\\Sistema-KDS-Kitchen-Display-System-para-restaurantes---Backend\\kdspro\\src\\kdspro.Application\\kdspro.Application.csproj": {
+              "projectPath": "C:\\Users\\Grupo B\\Desktop\\Sistema-KDS\\Sistema-KDS-Kitchen-Display-System-para-restaurantes---Backend\\kdspro\\src\\kdspro.Application\\kdspro.Application.csproj"
             },
-            "C:\\Users\\Grupo B\\Desktop\\Sistema-KDS-Kitchen-Display-System-para-restaurantes---Backend\\kdspro\\src\\kdspro.Domain\\kdspro.Domain.csproj": {
-              "projectPath": "C:\\Users\\Grupo B\\Desktop\\Sistema-KDS-Kitchen-Display-System-para-restaurantes---Backend\\kdspro\\src\\kdspro.Domain\\kdspro.Domain.csproj"
+            "C:\\Users\\Grupo B\\Desktop\\Sistema-KDS\\Sistema-KDS-Kitchen-Display-System-para-restaurantes---Backend\\kdspro\\src\\kdspro.Domain\\kdspro.Domain.csproj": {
+              "projectPath": "C:\\Users\\Grupo B\\Desktop\\Sistema-KDS\\Sistema-KDS-Kitchen-Display-System-para-restaurantes---Backend\\kdspro\\src\\kdspro.Domain\\kdspro.Domain.csproj"
             },
-            "C:\\Users\\Grupo B\\Desktop\\Sistema-KDS-Kitchen-Display-System-para-restaurantes---Backend\\kdspro\\src\\kdspro.Infrastructure\\kdspro.Infrastructure.csproj": {
-              "projectPath": "C:\\Users\\Grupo B\\Desktop\\Sistema-KDS-Kitchen-Display-System-para-restaurantes---Backend\\kdspro\\src\\kdspro.Infrastructure\\kdspro.Infrastructure.csproj"
+            "C:\\Users\\Grupo B\\Desktop\\Sistema-KDS\\Sistema-KDS-Kitchen-Display-System-para-restaurantes---Backend\\kdspro\\src\\kdspro.Infrastructure\\kdspro.Infrastructure.csproj": {
+              "projectPath": "C:\\Users\\Grupo B\\Desktop\\Sistema-KDS\\Sistema-KDS-Kitchen-Display-System-para-restaurantes---Backend\\kdspro\\src\\kdspro.Infrastructure\\kdspro.Infrastructure.csproj"
             }
           }
         }
