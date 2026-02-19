@@ -16,25 +16,21 @@ public class OrderRepository : GenericRepository<Order>, IOrderRepository
     /// Actualiza el estado y gestiona automáticamente la auditoría de tiempo (FinishedAt)
     /// </summary>
     public async Task UpdateStatusAsync(string id, OrderStatus status, CancellationToken ct = default)
-    {
-        var filter = Builders<Order>.Filter.Eq(o => o.Id, id);
-        
-        // 1. Preparamos la actualización del estado
-        var update = Builders<Order>.Update.Set(o => o.Status, status);
+   {
+     var filter = Builders<Order>.Filter.Eq(o => o.Id, id);
+    
+     // 1. Determinamos la fecha de finalización en una sola línea
+     DateTime? finishedDate = (status == OrderStatus.Ready || status == OrderStatus.Delivered) 
+                             ? DateTime.UtcNow 
+                             : null;
+     // 2. Creamos una única instrucción de actualización (Atómica y eficiente)
+     var update = Builders<Order>.Update
+        .Set(o => o.Status, status)
+        .Set(o => o.FinishedAt, finishedDate);
 
-        // 2. Lógica de Auditoría: Si está terminada o entregada, grabamos la fecha
-        if (status == OrderStatus.Ready || status == OrderStatus.Delivered)
-        {
-            update = update.Set(o => o.FinishedAt, DateTime.UtcNow);
-        }
-        // Si vuelve a un estado previo, limpiamos la fecha de finalización
-        else 
-        {
-            update = update.Set(o => o.FinishedAt, (DateTime?)null);
-        }
-
-        await _collection.UpdateOneAsync(filter, update, cancellationToken: ct);
-    }
+     // 3. Ejecutamos en MongoDB
+     await _collection.UpdateOneAsync(filter, update, cancellationToken: ct);
+   }
 
     /// <summary>
     /// Obtiene órdenes activas (FIFO) ignorando las entregadas y las canceladas
