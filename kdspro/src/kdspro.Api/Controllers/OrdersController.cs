@@ -21,10 +21,10 @@ public class OrdersController : ControllerBase
         _hubContext = hubContext;
     }
 
-    [HttpGet]
-    public async Task<ActionResult<List<Order>>> Get(CancellationToken ct) //se recibe de la peticion web
+    [HttpGet("active")]
+    public async Task<ActionResult<List<Order>>> Get(CancellationToken ct) 
     {
-        var orders = await _repository.GetAllAsync(ct); // lo pasa al repositorio
+        var orders = await _repository.GetActiveOrdersAsync(ct); // Aquí podrías filtrar por estado si solo quieres las activas (Pending, InProgress)
         return Ok(orders);
     }
 
