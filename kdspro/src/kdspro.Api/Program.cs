@@ -6,7 +6,12 @@ using kdspro.Api.Hubs;
 var builder = WebApplication.CreateBuilder(args);
 
 // --- SERVICIOS ---
-builder.Services.AddControllers().AddNewtonsoftJson(); 
+builder.Services.AddControllers().AddNewtonsoftJson(options =>
+     {
+        //Configuracion para que los estados no se muestren como numero sino como string pending o ready.
+        options.SerializerSettings.Converters.Add(new Newtonsoft.Json.Converters.StringEnumConverter()); 
+     });
+     
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
