@@ -19,8 +19,12 @@ public class Order
     // Este atributo guarda el nombre del estado en la BD para que sea legible
     // Una lista de los productos que pidieron
     public List<OrderItem> Items { get; set; } = new();
-
+    
+    [BsonRepresentation(BsonType.String)]
     public OrderStatus Status  { get; set; } = OrderStatus.Pending;
+
+     public decimal TotalAmount => Items.Sum(i => i.UnitPrice * i.Quantity);
+
 }
 
 public class OrderItem
@@ -28,6 +32,8 @@ public class OrderItem
     public string ProductId { get; set; } = string.Empty;
     public string ProductName { get; set; } = string.Empty;
     public int Quantity { get; set; }
+    public decimal UnitPrice { get; set; }
+     public List<string> Modifiers { get; set; } = new();
     public string Notes { get; set; } = string.Empty; // Ej: "Sin cebolla"
 }
 
