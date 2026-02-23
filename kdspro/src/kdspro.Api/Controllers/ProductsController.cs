@@ -4,6 +4,10 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace kdspro.Api.Controllers;
 
+/// <summary>
+/// Controlador para la gestión del catálogo de productos (Módulo de Menú - Mes 1).
+/// Permite administrar los platillos, bebidas y acompañamientos del restaurante.
+/// </summary>
 [ApiController]
 [Route("api/[controller]")]
 public class ProductsController : ControllerBase
@@ -15,7 +19,10 @@ public class ProductsController : ControllerBase
         _productRepository = productRepository;
     }
 
-    // GET: api/products
+    /// <summary>
+    /// Obtiene la lista completa de productos (Menú).
+    /// Es el endpoint principal que consultará la terminal del mesero para mostrar opciones al cliente.
+    /// </summary>
     [HttpGet]
     public async Task<ActionResult<List<Product>>> GetAll()
     {
@@ -23,26 +30,35 @@ public class ProductsController : ControllerBase
         return Ok(products);
     }
 
-    // GET: api/products/{id}
+    /// <summary>
+    /// Busca un producto específico por su identificador único de MongoDB.
+    /// </summary>
+    /// <param name="id">ID del producto (ObjectId).</param>
     [HttpGet("{id}")]
     public async Task<ActionResult<Product>> GetById(string id)
     {
         var product = await _productRepository.GetByIdAsync(id);
-        if (product == null) return NotFound();
+        if (product == null) return NotFound(new { message = "Producto no encontrado" });
         return Ok(product);
     }
 
-    // POST: api/products
+    /// <summary>
+    /// Registra un nuevo producto en el catálogo (Módulo Admin).
+    /// Permite añadir lanzamientos temporales o nuevos platos al menú de Wendy's.
+    /// </summary>
     [HttpPost]
-    public async Task<ActionResult> Create(Product product)
+    public async Task<ActionResult> Create([FromBody] Product product)
     {
         await _productRepository.CreateAsync(product);
         return CreatedAtAction(nameof(GetById), new { id = product.Id }, product);
     }
 
-    // PUT: api/products/{id}
+    /// <summary>
+    /// Actualiza la información completa de un producto existente.
+    /// Se utiliza para cambios de nombre, descripción o ajustes de precio.
+    /// </summary>
     [HttpPut("{id}")]
-    public async Task<IActionResult> Update(string id, Product product)
+    public async Task<IActionResult> Update(string id, [FromBody] Product product)
     {
         var existing = await _productRepository.GetByIdAsync(id);
         if (existing == null) return NotFound();
@@ -51,7 +67,13 @@ public class ProductsController : ControllerBase
         return NoContent();
     }
 
-    // PATCH: api/products/{id}/availability (Para el stock básico)
+    /// <summary>
+    /// Gestión de Stock Crítico: Activa o desactiva la disponibilidad de un producto.
+    /// Si se termina un ingrediente (ej. carne), el Admin lo desactiva aquí para que 
+    /// los meseros dejen de ofrecerlo instantáneamente.
+    /// </summary>
+    /// <param name="id">ID del producto.</param>
+    /// <param name="isAvailable">Estado de stock (true/false).</param>
     [HttpPatch("{id}/availability")]
     public async Task<IActionResult> UpdateAvailability(string id, [FromBody] bool isAvailable)
     {
@@ -62,7 +84,10 @@ public class ProductsController : ControllerBase
         return NoContent();
     }
 
-    // DELETE: api/products/{id}
+    /// <summary>
+    /// Elimina físicamente un producto del catálogo.
+    /// Se recomienda usar con precaución para no romper el historial de órdenes pasadas.
+    /// </summary>
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(string id)
     {
