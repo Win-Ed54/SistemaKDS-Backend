@@ -5,31 +5,39 @@ using kdspro.Api.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// --- SERVICIOS ---
+// --- 1. CONFIGURACIÓN DE CONTROLADORES Y SERIALIZACIÓN ---
+// Se añade NewtonsoftJson para personalizar cómo los datos viajan al Frontend (React).
 builder.Services.AddControllers().AddNewtonsoftJson(options =>
-     {
-        //Configuracion para que los estados no se muestren como numero sino como string pending o ready.
-        options.SerializerSettings.Converters.Add(new Newtonsoft.Json.Converters.StringEnumConverter()); 
-     });
-     
+{
+    // CONFIGURACIÓN CRÍTICA: Los estados (Enums) se envían como texto ("Pending", "Ready") 
+    // en lugar de números (0, 1). Esto hace que el Frontend sea mucho más fácil de programar.
+    options.SerializerSettings.Converters.Add(new Newtonsoft.Json.Converters.StringEnumConverter()); 
+});
+
+// Configuración de Swagger para la documentación interactiva de la API.
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// 2. AGREGAR SIGNALR
+// --- 2. COMUNICACIÓN EN TIEMPO REAL (SIGNALR) ---
+// Habilita las capacidades de WebSockets necesarias para que la cocina reciba tickets sin F5.
 builder.Services.AddSignalR();
 
-// 3. CONFIGURAR CORS (Vital para que React pueda conectarse)
+// --- 3. CONFIGURACIÓN DE SEGURIDAD (CORS) ---
+// Vital para que el Frontend (Vite/React) pueda comunicarse con el Backend.
+// Sin 'AllowCredentials', SignalR no podrá establecer la conexión de socket.
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
     {
-        policy.WithOrigins("http://localhost:5173", "https://tu-kds-app.vercel.app") // URL de tu frontend (Vite/React) temporales
+        policy.WithOrigins("http://localhost:5173", "https://tu-kds-app.vercel.app") 
               .AllowAnyHeader()
               .AllowAnyMethod()
-              .AllowCredentials(); // Obligatorio para SignalR
+              .AllowCredentials(); 
     });
 });
 
+// --- 4. INYECCIÓN DE DEPENDENCIAS (CAPA DE INFRAESTRUCTURA) ---
+// Registramos los servicios que se conectan con MongoDB.
 builder.Services.AddSingleton<MongoDbContext>();
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
@@ -37,22 +45,25 @@ builder.Services.AddScoped<ITableRepository, TableRepository>();
 
 var app = builder.Build();
 
-// --- PIPELINE ---
+// --- 5. PIPELINE DE LA APLICACIÓN (MIDDLEWARES) ---
+// Configuración del entorno de desarrollo (Swagger).
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-// 4. USAR LA POLÍTICA DE CORS (Antes de MapControllers)
+// IMPORTANTE: El CORS debe aplicarse antes de los controladores para evitar bloqueos.
 app.UseCors("AllowAll");
 
 app.UseHttpsRedirection();
 app.UseAuthorization();
 
+// Registro de las rutas de los Controladores (API REST).
 app.MapControllers(); 
 
-// 5. MAPEAR EL HUB (El punto de entrada para el socket)
+// --- 6. ENDPOINT DE TIEMPO REAL ---
+// Define la ruta "/ordersHub" como el punto de entrada para los WebSockets del KDS.
 app.MapHub<OrdersHub>("/ordersHub");
 
 app.Run();
