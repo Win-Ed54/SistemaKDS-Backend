@@ -7,6 +7,10 @@ using Microsoft.AspNetCore.SignalR;
 
 namespace kdspro.Api.Controllers;
 
+/// <summary>
+/// Controlador principal para la gestión de órdenes (Módulo KDS - Mes 2).
+/// Orquesta la persistencia en MongoDB y las notificaciones en tiempo real vía SignalR.
+/// </summary>
 [ApiController]
 [Route("api/[controller]")]
 public class OrdersController : ControllerBase
@@ -20,62 +24,74 @@ public class OrdersController : ControllerBase
         _hubContext = hubContext;
     }
 
-    // GET: api/orders/active
+    /// <summary>
+    /// Obtiene todas las órdenes activas (Pendientes y en Preparación).
+    /// Es el endpoint que consulta la pantalla de cocina al cargar para mostrar los tickets.
+    /// Implementa ordenamiento FIFO basado en la fecha de creación.
+    /// </summary>
     [HttpGet("active")]
     public async Task<ActionResult<List<Order>>> Get(CancellationToken ct) 
     {
-        // Trae órdenes pendientes o en preparación para la pantalla inicial
         var orders = await _repository.GetActiveOrdersAsync(ct); 
         return Ok(orders);
     }
 
-    // POST: api/orders
+    /// <summary>
+    /// Crea una nueva orden y notifica instantáneamente a la pantalla de la cocina.
+    /// Punto de entrada desde la terminal móvil del mesero (Mes 3).
+    /// </summary>
+    /// <param name="order">Objeto de la orden con items, modificadores y detalles de mesa.</param>
     [HttpPost]
     public async Task<IActionResult> Post([FromBody] Order order)
     {
-        // 1. Guardar en MongoDB
+        // 1. Persistencia atómica en MongoDB
         await _repository.CreateAsync(order);
 
-        // 2. REAL-TIME: Notificar a la cocina. 
-        // Eliminamos 'ct' de SendAsync porque SignalR no lo acepta ahí.
-        // Enviamos el objeto 'order' completo para que el frontend tenga el 'CreatedAt'.
+        // 2. COMUNICACIÓN REAL-TIME: El ticket aparece en la cocina sin refrescar (F5)
+        // Se envía el objeto completo para procesar tiempos y modificadores en el frontend
         await _hubContext.Clients.Group("cocina").SendAsync("ReceiveOrder", order);
 
         return CreatedAtAction(nameof(GetById), new { id = order.Id }, order);
     }
 
-    // PATCH: api/orders/{id}/status
-    // Usamos PATCH porque solo estamos actualizando una propiedad (el estado)
+    /// <summary>
+    /// Actualiza el estado de una orden (Ej: de 'Pending' a 'Ready').
+    /// Orquesta la actualización de auditoría (FinishedAt) y notifica a los meseros.
+    /// </summary>
+    /// <param name="id">ID único de la orden en MongoDB.</param>
+    /// <param name="status">Nuevo estado de la orden (Enum).</param>
     [HttpPatch("{id}/status")]
     public async Task<IActionResult> UpdateStatus(string id, [FromBody] OrderStatus status, CancellationToken ct)
     {
-        // 1. Validar Existencia
+        // 1. Validación de integridad
         var existingOrder = await _repository.GetByIdAsync(id);
         if (existingOrder == null)
         {
             return NotFound(new { message = $"La orden con ID {id} no existe" });
         }
         
-        // 2. Actualización en DB (Limpia fechas si cambia de Ready a Cooking)
+        // 2. Actualización de estado y tiempos de preparación en DB
         await _repository.UpdateStatusAsync(id, status, ct);
 
-        // 3. REAL-TIME: Notificar el cambio. 
-        // Usamos status.ToString() para que el frontend reciba "Ready" en vez de "2".
+        // 3. REAL-TIME: La pantalla de cocina mueve o actualiza el ticket visualmente
         await _hubContext.Clients.Group("cocina").SendAsync("UpdateOrderStatus", id, status.ToString());
         
-        // 4. FLUJO CRÍTICO: Notificar al mesero si el pedido está listo
+        // 4. FLUJO CRÍTICO: Si el pedido está listo, se emite una alerta global para los meseros
         if (status == OrderStatus.Ready)
         {
             await _hubContext.Clients.All.SendAsync("NotifyWaiterOrderReady", new 
             { 
                 OrderId = id, 
-                Table = existingOrder.TableNumber // Útil para que el mesero sepa a dónde ir
+                Table = existingOrder.TableNumber 
             });
         }
         
         return NoContent();
     }
 
+    /// <summary>
+    /// Consulta el detalle de una orden específica por su ID.
+    /// </summary>
     [HttpGet("{id}")]
     public async Task<ActionResult<Order>> GetById(string id)
     {
