@@ -34,6 +34,7 @@ public class Order
 
     // --- LÓGICA DE NEGOCIO ---
     // Total calculado automáticamente sumando los subtotales de los items
+    [BsonRepresentation(BsonType.Decimal128)] //Mongodb pueda realizar calculos
     public decimal TotalAmount => Items.Sum(i => i.UnitPrice * i.Quantity);
 
     // Propiedad calculada: ¿Lleva más de 15 minutos esperando? (Para poner el ticket en ROJO)
@@ -50,6 +51,7 @@ public class OrderItem
     public int Quantity { get; set; }
     
     // Precio al momento de la compra (Auditoría financiera)
+    [BsonRepresentation(BsonType.Decimal128)] //Mongodb pueda realizar calculos.
     public decimal UnitPrice { get; set; }
 
     // --- PERSONALIZACIÓN ---
