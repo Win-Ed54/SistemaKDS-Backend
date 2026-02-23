@@ -8,6 +8,8 @@ public class Product
     public string Name { get; set; } = string.Empty;
     
     public decimal Price { get; set; }
+
+    public string Description {get; set;} = string.Empty;
     
     // Para saber si el plato está disponible (ej. si se acabó el pollo)
     public bool IsAvailable { get; set; } = true;
