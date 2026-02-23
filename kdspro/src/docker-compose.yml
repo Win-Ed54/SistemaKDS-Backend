@@ -1,14 +1,30 @@
+# Definición de servicios para el ecosistema KDS (Módulo Infraestructura - Mes 1 y 2).
 services:
   mongodb:
+    # 1. IMAGEN OFICIAL: Usamos la última versión estable de MongoDB.
     image: mongo:latest
+    
+    # 2. IDENTIFICACIÓN: Nombre único para gestionar el contenedor desde la terminal.
     container_name: kds-mongodb
+    
+    # 3. ALTA DISPONIBILIDAD: Si el PC se reinicia o el proceso falla, Docker lo levanta solo.
     restart: always
+    
+    # 4. RED Y PUERTOS: Mapeamos el puerto estándar de Mongo (27017) 
+    # para que nuestra API en .NET pueda conectarse vía localhost.
     ports:
       - "27017:27017"
+    
+    # 5. PERSISTENCIA DE DATOS: Crucial para el KDS. 
+    # Aunque borres el contenedor, los pedidos y el menú de Wendy's NO se pierden
+    # porque se guardan en un volumen físico del disco duro.
     volumes:
       - mongo_data:/data/db
+    
+    # 6. VARIABLES DE ENTORNO: Definimos el nombre de la base de datos inicial.
     environment:
       MONGO_INITDB_DATABASE: KdsDatabase
 
+# Definición del volumen persistente para asegurar la integridad de la información.
 volumes:
   mongo_data:
