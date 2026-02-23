@@ -3,13 +3,26 @@ using MongoDB.Driver;
 
 namespace kdspro.Infrastructure.Persistence;
 
+/// <summary>
+/// Clase de utilidad para la carga de datos iniciales (Data Seeding) en MongoDB.
+/// Garantiza que el sistema KDS cuente con un menú base funcional desde el primer despliegue.
+/// </summary>
 public static class DbSeeder
 {
+    /// <summary>
+    /// Pobla la colección de productos con el catálogo oficial de Wendy's si esta se encuentra vacía.
+    /// Crucial para demostraciones, pruebas de desarrollo y validación de tipos de datos.
+    /// </summary>
+    /// <param name="collection">La colección de MongoDB donde se insertarán los documentos.</param>
+    /// <returns>Tarea asincrónica que representa la operación de inserción masiva.</returns>
     public static async Task SeedProducts(IMongoCollection<Product> collection)
     {
-        // Solo sembramos si no hay productos previos
+        // 1. VERIFICACIÓN DE SEGURIDAD: Solo sembramos si la base de datos está totalmente vacía
+        // Esto evita duplicar el menú cada vez que se reinicia el servidor.
         if (await collection.CountDocumentsAsync(_ => true) > 0) return;
 
+        // 2. CATÁLOGO DIGITAL DE WENDY'S: 20 productos organizados por categorías
+        // Se utilizan sufijos 'm' para asegurar que los precios se traten como decimales de alta precisión.
         var wendysMenu = new List<Product>
         {
             new() { Name = "Dave's Single", Description = "Cuarto de libra de carne fresca con queso", Price = 5.99m, Category = "Hamburguesas", IsAvailable = true },
@@ -34,6 +47,8 @@ public static class DbSeeder
             new() { Name = "Apple Pecan Salad", Description = "Ensalada fresca con manzana y nueces", Price = 7.99m, Category = "Ensaladas", IsAvailable = true }
         };
 
+        // 3. PERSISTENCIA MASIVA: Se insertan todos los productos en una sola operación de red
+        // Optimizamos el rendimiento del inicio de la aplicación.
         await collection.InsertManyAsync(wendysMenu);
     }
 }
