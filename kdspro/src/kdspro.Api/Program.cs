@@ -25,7 +25,7 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
     {
-        policy.WithOrigins("http://localhost:5174") 
+        policy.WithOrigins("http://localhost:5173","http://localhost:5174") 
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials(); 
@@ -33,11 +33,11 @@ builder.Services.AddCors(options =>
 });
 
 // --- 4. INYECCIÓN DE DEPENDENCIAS ---
+// Leemos la cadena de conexión desde las variables de entorno de Docker o appsettings
 builder.Services.AddSingleton<MongoDbContext>();
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 builder.Services.AddScoped<ITableRepository, TableRepository>();
-
 var app = builder.Build();
 
 // --- 5. PIPELINE DE LA APLICACIÓN (MIDDLEWARES) ---
