@@ -26,9 +26,10 @@ public class MongoDbContext
     {
         // 1. OBTENCIÓN DE CONFIGURACIÓN: Extraemos los valores del archivo appsettings.json
         // Esto permite cambiar de base de datos local (Docker) a una de producción sin cambiar el código.
-        var connectionString = configuration.GetSection("MongoDB:ConnectionString").Value;
-        var databaseName = configuration.GetSection("MongoDB:DatabaseName").Value;
-
+        var connectionString = configuration.GetSection("MongoDB:ConnectionString").Value
+                                                 ?? "mongodb://localhost:27017";
+        var databaseName = configuration.GetSection("MongoDB:DatabaseName").Value
+                                                 ?? "KDS";
         // 2. CONEXIÓN AL CLIENTE: Creamos el cliente de MongoDB (Singleton recomendado internamente por el Driver)
         var client = new MongoClient(connectionString);
         
