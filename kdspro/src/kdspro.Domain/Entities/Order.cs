@@ -4,10 +4,7 @@ using MongoDB.Bson.Serialization.Attributes;
 
 namespace kdspro.Domain.Entities;
 
-/// <summary>
-/// Entidad principal que representa un pedido en el sistema KDS (Módulo Pedidos - Mes 1, 2 y 3).
-/// Orquesta el ciclo de vida desde la toma del pedido hasta la entrega final en mesa.
-/// </summary>
+[BsonIgnoreExtraElements]
 public class Order
 {
     [BsonId]
@@ -21,13 +18,19 @@ public class Order
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     /// <summary>
-    /// Registra el momento en que la cocina marcó la orden como "Ready" (Lista para servir).
+    /// 🔥 NUEVO: Momento en que la cocina inicia la preparación
+    /// </summary>
+    public DateTime? StartedAt { get; set; }
+
+    /// <summary>
+    /// Registra el momento en que la cocina marcó la orden como "Ready"
     /// </summary>
     public DateTime? ReadyAt { get; set; }
 
     /// <summary>
-    /// Registra el momento exacto en que el mesero entregó el pedido (Estado Finished).
+    /// Registra el momento en que el mesero entregó el pedido
     /// </summary>
+    [BsonElement("FinishedAt")]
     public DateTime? DeliveredAt { get; set; }
 
     // --- IDENTIFICACIÓN ---
@@ -48,9 +51,16 @@ public class Order
     public decimal TotalAmount => Items.Sum(i => i.UnitPrice * i.Quantity);
 
     /// <summary>
-    /// Requisito Técnico 2: Resalta el ticket en ROJO si excede los 15 minutos de preparación.
+    /// 🔥 MEJORADO: ahora usa StartedAt si existe
     /// </summary>
-    public bool IsOverdue => (DateTime.UtcNow - CreatedAt).TotalMinutes > 15;
+    public bool IsOverdue
+    {
+        get
+        {
+            var start = StartedAt ?? CreatedAt;
+            return (DateTime.UtcNow - start).TotalMinutes > 15;
+        }
+    }
 }
 
 public class OrderItem
