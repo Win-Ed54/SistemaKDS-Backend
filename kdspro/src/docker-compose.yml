@@ -1,34 +1,44 @@
 version: '3.8'
 
-# Definición de servicios para el ecosistema KDS (Módulo Infraestructura - Mes 1 y 2).
 services:
   mongodb:
-    image: mongo:latest
+    image: mongo:8.0
     container_name: kds-mongodb
     restart: always
-    ports:
-      - "27017:27017"
     volumes:
       - mongo_data:/data/db
     environment:
-      # Nombre de la base de datos inicial
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: secret
       MONGO_INITDB_DATABASE: KDS
+    networks:
+      - kds-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.runCommand({ ping: 1 })"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   kds-api:
     build:
       context: .
       dockerfile: kdspro.Api/Dockerfile
     container_name: kds-backend
+    restart: always
     ports:
-      - "5162:8080" # Mapeamos tu puerto 5162 al puerto interno del contenedor
+      - "5162:8080"
     depends_on:
-      - mongodb
+      mongodb:
+        condition: service_healthy
     environment:
-      # SINCRONIZACIÓN: Estas claves coinciden con tu MongoDbContext.cs
-      - MongoDB__ConnectionString=mongodb://mongodb:27017
+      - MongoDB__ConnectionString=mongodb://admin:secret@mongodb:27017
       - MongoDB__DatabaseName=KDS
       - ASPNETCORE_ENVIRONMENT=Development
+    networks:
+      - kds-network
 
 volumes:
   mongo_data:
 
+networks:
+  kds-network:
