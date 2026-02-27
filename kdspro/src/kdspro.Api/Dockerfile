@@ -1,29 +1,38 @@
-# 1. IMAGEN DE COMPILACIÓN (SDK)
+# Imagen base
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
+WORKDIR /app
+EXPOSE 8080
+
+# Build
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
-# Copiar archivos de proyecto y restaurar
+# Copiar solution
+COPY ["kdspro.sln", "./"]
+
+# Copiar proyectos
 COPY ["kdspro.Api/kdspro.Api.csproj", "kdspro.Api/"]
+COPY ["kdspro.Application/kdspro.Application.csproj", "kdspro.Application/"]
 COPY ["kdspro.Domain/kdspro.Domain.csproj", "kdspro.Domain/"]
 COPY ["kdspro.Infrastructure/kdspro.Infrastructure.csproj", "kdspro.Infrastructure/"]
 
-RUN dotnet restore "kdspro.Api/kdspro.Api.csproj"
+# 🔥 IMPORTANTE: RESTORE
+RUN dotnet restore
 
-# Copiar todo y compilar
+# Copiar todo el código
 COPY . .
+
 WORKDIR "/src/kdspro.Api"
+
+# Build SIN --no-restore
 RUN dotnet build "kdspro.Api.csproj" -c Release -o /app/build
 
-# 2. PUBLICACIÓN
+# Publish
 FROM build AS publish
 RUN dotnet publish "kdspro.Api.csproj" -c Release -o /app/publish
 
-# 3. IMAGEN FINAL (RUNTIME)
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
+# Runtime
+FROM base AS final
 WORKDIR /app
-
 COPY --from=publish /app/publish .
-
-EXPOSE 8080
-
 ENTRYPOINT ["dotnet", "kdspro.Api.dll"]
