@@ -7,10 +7,6 @@ using Microsoft.AspNetCore.SignalR;
 
 namespace kdspro.Api.Controllers;
 
-/// <summary>
-/// Controlador principal para la gestión de órdenes (Módulo KDS & Mesero).
-/// Orquesta la persistencia en MongoDB y las notificaciones en tiempo real vía SignalR.
-/// </summary>
 [ApiController]
 [Route("api/[controller]")]
 public class OrdersController : ControllerBase
@@ -25,80 +21,159 @@ public class OrdersController : ControllerBase
     }
 
     /// <summary>
-    /// Obtiene todas las órdenes activas (Pendientes y en Preparación).
+    /// Obtiene todas las órdenes activas (Pending + Preparing)
     /// </summary>
     [HttpGet("active")]
     public async Task<ActionResult<List<Order>>> Get(CancellationToken ct) 
     {
-        var orders = await _repository.GetActiveOrdersAsync(ct); 
+        var orders = await _repository.GetActiveOrdersAsync(ct);
         return Ok(orders);
     }
 
     /// <summary>
-    /// Consulta el detalle de una orden específica por su ID.
+    /// Obtener orden por ID
     /// </summary>
     [HttpGet("{id}")]
-    public async Task<ActionResult<Order>> GetById(string id)
+    public async Task<ActionResult<Order>> GetById(string id, CancellationToken ct)
     {
-        var order = await _repository.GetByIdAsync(id);
-        return order != null ? Ok(order) : NotFound();
+        if (string.IsNullOrWhiteSpace(id))
+            return BadRequest(new { message = "Id inválido" });
+
+        var order = await _repository.GetByIdAsync(id, ct);
+
+        return order != null
+            ? Ok(order)
+            : NotFound(new { message = "Orden no encontrada" });
     }
 
     /// <summary>
-    /// Punto de entrada desde la terminal móvil del mesero (Mes 3).
-    /// Crea una nueva orden y notifica instantáneamente a la cocina (ReceiveOrder).
+    /// Crear nueva orden
     /// </summary>
     [HttpPost]
-    public async Task<IActionResult> Post([FromBody] Order order)
+    public async Task<IActionResult> Post([FromBody] Order order, CancellationToken ct)
     {
-        await _repository.CreateAsync(order);
-        
-        // SignalR: Envía al grupo "cocina" para mostrar el ticket sin F5
-        await _hubContext.Clients.Group("cocina").SendAsync("ReceiveOrder", order);
+        if (order == null || order.Items == null || !order.Items.Any())
+            return BadRequest(new { message = "Orden inválida" });
+
+        order.CreatedAt = DateTime.UtcNow;
+
+        // ✅ IMPORTANTE: FORZAR ESTADO INICIAL
+        order.Status = OrderStatus.Pending;
+
+        await _repository.CreateAsync(order, ct);
+
+        await _hubContext.Clients.Group("cocina")
+            .SendAsync("ReceiveOrder", order);
 
         return CreatedAtAction(nameof(GetById), new { id = order.Id }, order);
     }
 
     /// <summary>
-    /// Endpoint para el flujo de despacho del KDS (Mes 2).
-    /// Cambia el estado a 'Ready' y emite la alerta sonora/visual para el pickup del mesero.
+    /// Cambiar a Preparing
+    /// </summary>
+    [HttpPatch("{id}/preparing")]
+    public async Task<IActionResult> MarkAsPreparing(string id, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+            return BadRequest(new { message = "Id inválido" });
+
+        var existingOrder = await _repository.GetByIdAsync(id, ct);
+
+        if (existingOrder == null)
+            return NotFound(new { message = "Orden no encontrada" });
+
+        if (existingOrder.Status != OrderStatus.Pending)
+            return BadRequest(new { message = "La orden ya no está pendiente." });
+
+        await _repository.UpdateStatusAsync(id, OrderStatus.Preparing, ct);
+
+        await _hubContext.Clients.Group("cocina")
+            .SendAsync("UpdateOrderStatus", id, OrderStatus.Preparing.ToString());
+
+        return Ok(new { id, status = OrderStatus.Preparing });
+    }
+
+    /// <summary>
+    /// Cambiar a Ready
     /// </summary>
     [HttpPatch("{id}/ready")]
     public async Task<IActionResult> MarkAsReady(string id, CancellationToken ct)
     {
-        var existingOrder = await _repository.GetByIdAsync(id);
-        if (existingOrder == null) return NotFound(new { message = "Orden no encontrada" });
-        
+        if (string.IsNullOrWhiteSpace(id))
+            return BadRequest(new { message = "Id inválido" });
+
+        var existingOrder = await _repository.GetByIdAsync(id, ct);
+
+        if (existingOrder == null)
+            return NotFound(new { message = "Orden no encontrada" });
+
+        if (existingOrder.Status != OrderStatus.Preparing)
+            return BadRequest(new { message = "La orden debe estar en preparación." });
+
         await _repository.UpdateStatusAsync(id, OrderStatus.Ready, ct);
 
-        // Notifica a cocina para remover ticket y a meseros para recoger
-        await _hubContext.Clients.Group("cocina").SendAsync("UpdateOrderStatus", id, "Ready");
-        await _hubContext.Clients.Group("waiters").SendAsync("NotifyWaiterOrderReady", new 
-        { 
-            OrderId = id, 
-            Table = existingOrder.TableNumber,
-            Customer = existingOrder.CustomerName
-        });
-        
-        return Ok(new { message = "Orden lista para servir." });
+        await _hubContext.Clients.Group("cocina")
+            .SendAsync("UpdateOrderStatus", id, OrderStatus.Ready.ToString());
+
+        // 🔔 Notificar a meseros
+        await _hubContext.Clients.Group("waiters")
+            .SendAsync("NotifyWaiterOrderReady", new
+            {
+                OrderId = id,
+                Table = existingOrder.TableNumber,
+                Customer = existingOrder.CustomerName
+            });
+
+        return Ok(new { id, status = OrderStatus.Ready });
     }
 
     /// <summary>
-    /// NUEVO: Endpoint para la entrega final por parte del mesero (Mes 3).
-    /// Cierra el ciclo de vida del pedido (Ready -> Finished) y registra auditoría.
+    /// Finalizar orden (Delivered)
     /// </summary>
     [HttpPatch("{id}/finish")]
     public async Task<IActionResult> MarkAsFinished(string id, CancellationToken ct)
     {
-        var existingOrder = await _repository.GetByIdAsync(id);
-        if (existingOrder == null) return NotFound();
+        if (string.IsNullOrWhiteSpace(id))
+            return BadRequest(new { message = "Id inválido" });
 
-        // 1. Persistencia: Cambia estado a Finished (2) y guarda fecha de finalización
+        var existingOrder = await _repository.GetByIdAsync(id, ct);
+
+        if (existingOrder == null)
+            return NotFound(new { message = "Orden no encontrada" });
+
+        if (existingOrder.Status != OrderStatus.Ready)
+            return BadRequest(new { message = "La orden no está lista." });
+
         await _repository.UpdateStatusAsync(id, OrderStatus.Delivered, ct);
 
-        // 2. Real-time: Notifica a todos los clientes para limpiar cualquier alerta residual
-        await _hubContext.Clients.All.SendAsync("OrderFinalized", id);
+        await _hubContext.Clients.All
+            .SendAsync("OrderFinalized", id);
 
-        return Ok(new { message = "Orden entregada con éxito." });
+        return Ok(new { id, status = OrderStatus.Delivered });
+    }
+
+    /// <summary>
+    /// Cancelar orden
+    /// </summary>
+    [HttpPatch("{id}/cancel")]
+    public async Task<IActionResult> Cancel(string id, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+            return BadRequest(new { message = "Id inválido" });
+
+        var existingOrder = await _repository.GetByIdAsync(id, ct);
+
+        if (existingOrder == null)
+            return NotFound(new { message = "Orden no encontrada" });
+
+        if (existingOrder.Status == OrderStatus.Delivered)
+            return BadRequest(new { message = "No se puede cancelar una orden entregada." });
+
+        await _repository.UpdateStatusAsync(id, OrderStatus.Cancelled, ct);
+
+        await _hubContext.Clients.All
+            .SendAsync("OrderCancelled", id);
+
+        return Ok(new { id, status = OrderStatus.Cancelled });
     }
 }
