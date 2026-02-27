@@ -6,10 +6,6 @@ using kdspro.Domain.Enums;
 
 namespace kdspro.Infrastructure.Repositories;
 
-/// <summary>
-/// Implementación del repositorio de Órdenes.
-/// Gestiona la persistencia en MongoDB sincronizando los estados con ReadyAt y DeliveredAt.
-/// </summary>
 public class OrderRepository : GenericRepository<Order>, IOrderRepository
 {
     public OrderRepository(MongoDbContext context) : base(context, "Orders")
@@ -19,48 +15,91 @@ public class OrderRepository : GenericRepository<Order>, IOrderRepository
             .Ascending(o => o.Status)
             .Ascending(o => o.CreatedAt);
 
-        var indexModel = new CreateIndexModel<Order>(indexKeys, new CreateIndexOptions { Name = "idx_orders_active_fifo" });
+        var indexModel = new CreateIndexModel<Order>(
+            indexKeys,
+            new CreateIndexOptions { Name = "idx_orders_active_fifo" }
+        );
+
         _collection.Indexes.CreateOne(indexModel);
     }
 
     /// <summary>
-    /// Actualiza el estado y gestiona automáticamente los tiempos de cocina y entrega.
+    /// Actualiza el estado y gestiona automáticamente los tiempos.
     /// </summary>
     public async Task UpdateStatusAsync(string id, OrderStatus status, CancellationToken ct = default)
     {
         var filter = Builders<Order>.Filter.Eq(o => o.Id, id);
-        
-        // Iniciamos la definición de actualización con el cambio de estado
+
         var update = Builders<Order>.Update.Set(o => o.Status, status);
 
-        // LÓGICA DE TIEMPOS SEGÚN TU ENTIDAD 'ORDER'
-        if (status == OrderStatus.Ready)
+        var now = DateTime.UtcNow;
+
+        // 🔥 NUEVA LÓGICA DE TIEMPOS
+        switch (status)
         {
-            // El cocinero despacha -> Registramos ReadyAt
-            update = update.Set(o => o.ReadyAt, DateTime.UtcNow);
-        }
-        else if (status == OrderStatus.Delivered)
-        {
-            // El mesero entrega en mesa -> Registramos DeliveredAt
-            update = update.Set(o => o.DeliveredAt, DateTime.UtcNow);
+            case OrderStatus.Preparing:
+                // Inicio de cocina
+                update = update.Set(o => o.StartedAt, now);
+                break;
+
+            case OrderStatus.Ready:
+                // Pedido listo
+                update = update.Set(o => o.ReadyAt, now);
+                break;
+
+            case OrderStatus.Delivered:
+                // Pedido entregado
+                update = update.Set(o => o.DeliveredAt, now);
+                break;
         }
 
-        // Ejecución atómica en MongoDB
         await _collection.UpdateOneAsync(filter, update, cancellationToken: ct);
     }
 
     /// <summary>
-    /// Recupera órdenes activas para el KDS (Excluye Delivered y Cancelled).
+    /// Obtiene órdenes activas (para cocina).
+    /// Solo Pending y Preparing.
     /// </summary>
     public async Task<List<Order>> GetActiveOrdersAsync(CancellationToken ct = default)
     {
-        var filter = Builders<Order>.Filter.And(
-            Builders<Order>.Filter.Ne(o => o.Status, OrderStatus.Delivered),
-            Builders<Order>.Filter.Ne(o => o.Status, OrderStatus.Cancelled)
-        );
+        var filter = Builders<Order>.Filter.In(o => o.Status, new[]
+        {
+            OrderStatus.Pending,
+            OrderStatus.Preparing
+        });
 
-        return await _collection.Find(filter)
-                                 .SortBy(o => o.CreatedAt)
-                                 .ToListAsync(ct);
+        return await _collection
+            .Find(filter)
+            .SortBy(o => o.CreatedAt) // FIFO
+            .ToListAsync(ct);
+    }
+
+    // 🔥 OPCIONAL (para MES 3)
+    /// <summary>
+    /// Órdenes listas para recoger por el mesero.
+    /// </summary>
+    public async Task<List<Order>> GetReadyOrdersAsync(CancellationToken ct = default)
+    {
+        var filter = Builders<Order>.Filter.Eq(o => o.Status, OrderStatus.Ready);
+
+        return await _collection
+            .Find(filter)
+            .SortBy(o => o.ReadyAt)
+            .ToListAsync(ct);
+    }
+
+    // 🔥 OPCIONAL (historial)
+    public async Task<List<Order>> GetHistoryAsync(CancellationToken ct = default)
+    {
+        var filter = Builders<Order>.Filter.In(o => o.Status, new[]
+        {
+            OrderStatus.Delivered,
+            OrderStatus.Cancelled
+        });
+
+        return await _collection
+            .Find(filter)
+            .SortByDescending(o => o.DeliveredAt)
+            .ToListAsync(ct);
     }
 }
