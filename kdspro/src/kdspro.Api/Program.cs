@@ -7,60 +7,75 @@ using MongoDB.Driver;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// --- 1. CONTROLADORES Y SERIALIZACIÓN JSON ---
+// --- LOGGING ---
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
+
+// --- CONTROLADORES ---
 builder.Services.AddControllers().AddNewtonsoftJson(options =>
 {
-    options.SerializerSettings.Converters.Add(new Newtonsoft.Json.Converters.StringEnumConverter()); 
+    options.SerializerSettings.Converters.Add(
+        new Newtonsoft.Json.Converters.StringEnumConverter()
+    );
 });
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// --- 2. COMUNICACIÓN EN TIEMPO REAL (SIGNALR) ---
-// Agregamos el servicio base
-builder.Services.AddSignalR();
+// --- SIGNALR ---
+builder.Services.AddSignalR(options =>
+{
+    options.EnableDetailedErrors = true;
+    options.KeepAliveInterval = TimeSpan.FromSeconds(15);
+});
 
-// --- 3. CONFIGURACIÓN DE SEGURIDAD (CORS) ---
+// --- CORS ---
+var allowedOrigins = builder.Configuration
+    .GetSection("Cors:Origins")
+    .Get<string[]>() 
+    ?? new[] { "http://localhost:5173", "http://localhost:5174" };
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
     {
-        policy.WithOrigins("http://localhost:5173","http://localhost:5174") 
+        policy.WithOrigins(allowedOrigins)
               .AllowAnyHeader()
               .AllowAnyMethod()
-              .AllowCredentials(); 
+              .AllowCredentials();
     });
 });
 
-// --- 4. INYECCIÓN DE DEPENDENCIAS ---
-// Leemos la cadena de conexión desde las variables de entorno de Docker o appsettings
+// --- DEPENDENCIAS ---
 builder.Services.AddSingleton<MongoDbContext>();
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 builder.Services.AddScoped<ITableRepository, TableRepository>();
+
 var app = builder.Build();
 
-// --- 5. PIPELINE DE LA APLICACIÓN (MIDDLEWARES) ---
+// --- MIDDLEWARE ---
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-app.UseCors("AllowAll");
 app.UseHttpsRedirection();
+
+app.UseCors("AllowAll");
+
 app.UseAuthorization();
 
-app.MapControllers(); 
+app.MapControllers();
 
-// --- 6. ENDPOINT DE TIEMPO REAL CON CONFIGURACIÓN DE .NET 8 ---
-// Movimos la configuración aquí para evitar el error de compilación CS1061
-app.MapHub<OrdersHub>("/ordersHub", options => 
+// --- SIGNALR ---
+app.MapHub<OrdersHub>("/ordersHub", options =>
 {
     options.AllowStatefulReconnects = true;
 });
 
-// --- 7. SIEMBRA AUTOMÁTICA DE DATOS ---
+// --- SEED ---
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
@@ -68,11 +83,11 @@ using (var scope = app.Services.CreateScope())
     {
         var context = services.GetRequiredService<MongoDbContext>();
         await DbSeeder.SeedProducts(context.Products);
-        Console.WriteLine(">>> Base de datos poblada con éxito con el Menú de Wendy's.");
+        Console.WriteLine(">>> Base de datos poblada correctamente");
     }
     catch (Exception ex)
     {
-        Console.WriteLine($">>> Error en la siembra de base de datos: {ex.Message}");
+        Console.WriteLine($">>> Error: {ex.Message}");
     }
 }
 
