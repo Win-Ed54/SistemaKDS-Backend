@@ -8,28 +8,27 @@ FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
 # Copiar solution
-COPY ["kdspro.sln", "./"]
+COPY kdspro.sln .
 
 # Copiar proyectos
-COPY ["kdspro.Api/kdspro.Api.csproj", "kdspro.Api/"]
-COPY ["kdspro.Application/kdspro.Application.csproj", "kdspro.Application/"]
-COPY ["kdspro.Domain/kdspro.Domain.csproj", "kdspro.Domain/"]
-COPY ["kdspro.Infrastructure/kdspro.Infrastructure.csproj", "kdspro.Infrastructure/"]
+COPY src/kdspro.Api/kdspro.Api.csproj src/kdspro.Api/
+COPY src/kdspro.Application/kdspro.Application.csproj src/kdspro.Application/
+COPY src/kdspro.Domain/kdspro.Domain.csproj src/kdspro.Domain/
+COPY src/kdspro.Infrastructure/kdspro.Infrastructure.csproj src/kdspro.Infrastructure/
 
-# 🔥 IMPORTANTE: RESTORE
+# Restore
 RUN dotnet restore
 
-# Copiar todo el código
+# Copiar todo
 COPY . .
 
-WORKDIR "/src/kdspro.Api"
-
-# Build SIN --no-restore
-RUN dotnet build "kdspro.Api.csproj" -c Release -o /app/build
+# Build
+WORKDIR /src/src/kdspro.Api
+RUN dotnet build kdspro.Api.csproj -c Release -o /app/build
 
 # Publish
 FROM build AS publish
-RUN dotnet publish "kdspro.Api.csproj" -c Release -o /app/publish
+RUN dotnet publish kdspro.Api.csproj -c Release -o /app/publish
 
 # Runtime
 FROM base AS final
