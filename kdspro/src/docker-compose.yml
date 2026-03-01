@@ -22,7 +22,7 @@ services:
   kds-api:
     build:
       context: .
-      dockerfile: kdspro.Api/Dockerfile
+      dockerfile: src/kdspro.Api/Dockerfile
     container_name: kds-backend
     restart: always
     ports:
