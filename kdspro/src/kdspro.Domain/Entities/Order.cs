@@ -18,7 +18,7 @@ public class Order
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     /// <summary>
-    /// 🔥 NUEVO: Momento en que la cocina inicia la preparación
+    /// NUEVO: Momento en que la cocina inicia la preparación
     /// </summary>
     public DateTime? StartedAt { get; set; }
 
