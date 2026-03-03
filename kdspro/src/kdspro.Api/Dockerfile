@@ -10,24 +10,25 @@ WORKDIR /src
 # Copiar solution
 COPY kdspro.sln .
 
-# Copiar proyectos
-COPY src/kdspro.Api/kdspro.Api.csproj src/kdspro.Api/
-COPY src/kdspro.Application/kdspro.Application.csproj src/kdspro.Application/
-COPY src/kdspro.Domain/kdspro.Domain.csproj src/kdspro.Domain/
-COPY src/kdspro.Infrastructure/kdspro.Infrastructure.csproj src/kdspro.Infrastructure/
+# Copiar proyectos (SIN src/)
+COPY kdspro.Api/kdspro.Api.csproj kdspro.Api/
+COPY kdspro.Application/kdspro.Application.csproj kdspro.Application/
+COPY kdspro.Domain/kdspro.Domain.csproj kdspro.Domain/
+COPY kdspro.Infrastructure/kdspro.Infrastructure.csproj kdspro.Infrastructure/
 
 # Restore
 RUN dotnet restore
 
-# Copiar todo
+# Copiar todo el código
 COPY . .
 
 # Build
-WORKDIR /src/src/kdspro.Api
+WORKDIR /src/kdspro.Api
 RUN dotnet build kdspro.Api.csproj -c Release -o /app/build
 
 # Publish
 FROM build AS publish
+WORKDIR /src/kdspro.Api
 RUN dotnet publish kdspro.Api.csproj -c Release -o /app/publish
 
 # Runtime
