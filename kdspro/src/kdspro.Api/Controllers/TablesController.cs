@@ -39,7 +39,7 @@ public class TablesController : ControllerBase
     {
         // El repositorio genérico se encarga de la persistencia atómica
         await _repository.CreateAsync(table);
-        
+
         // Retornamos 201 Created con la ubicación del nuevo recurso
         return CreatedAtAction(nameof(GetAll), new { id = table.Id }, table);
     }
@@ -60,7 +60,7 @@ public class TablesController : ControllerBase
 
         // 2. Ejecutamos la actualización parcial (PATCH) en la base de datos
         await _repository.UpdateAvailabilityAsync(id, isActive);
-        
+
         return NoContent();
     }
 }
