@@ -10,7 +10,7 @@ WORKDIR /src
 # Copiar solution
 COPY kdspro.sln .
 
-# Copiar proyectos (SIN src/)
+# Copiar proyectos
 COPY kdspro.Api/kdspro.Api.csproj kdspro.Api/
 COPY kdspro.Application/kdspro.Application.csproj kdspro.Application/
 COPY kdspro.Domain/kdspro.Domain.csproj kdspro.Domain/

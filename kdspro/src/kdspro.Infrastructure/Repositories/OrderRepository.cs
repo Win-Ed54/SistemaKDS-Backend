@@ -34,7 +34,7 @@ public class OrderRepository : GenericRepository<Order>, IOrderRepository
 
         var now = DateTime.UtcNow;
 
-        // 🔥 NUEVA LÓGICA DE TIEMPOS
+        //NUEVA LÓGICA DE TIEMPOS
         switch (status)
         {
             case OrderStatus.Preparing:
@@ -74,7 +74,7 @@ public class OrderRepository : GenericRepository<Order>, IOrderRepository
             .ToListAsync(ct);
     }
 
-    // 🔥 OPCIONAL (para MES 3)
+   
     /// <summary>
     /// Órdenes listas para recoger por el mesero.
     /// </summary>
@@ -88,7 +88,7 @@ public class OrderRepository : GenericRepository<Order>, IOrderRepository
             .ToListAsync(ct);
     }
 
-    // 🔥 OPCIONAL (historial)
+    //(historial)
     public async Task<List<Order>> GetHistoryAsync(CancellationToken ct = default)
     {
         var filter = Builders<Order>.Filter.In(o => o.Status, new[]

@@ -18,13 +18,13 @@ namespace kdspro.Domain.Interfaces
         /// </summary>
         Task<List<Order>> GetActiveOrdersAsync(CancellationToken ct = default);
 
-        /// 🔥 NUEVO (opcional)
+        ///NUEVO (opcional)
         /// <summary>
         /// Obtiene órdenes listas para entrega (Ready).
         /// </summary>
         Task<List<Order>> GetReadyOrdersAsync(CancellationToken ct = default);
 
-        /// 🔥 NUEVO (opcional)
+        ///NUEVO (opcional)
         /// <summary>
         /// Obtiene órdenes finalizadas (Delivered o Cancelled).
         /// </summary>

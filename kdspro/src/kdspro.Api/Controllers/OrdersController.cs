@@ -57,7 +57,7 @@ public class OrdersController : ControllerBase
 
         order.CreatedAt = DateTime.UtcNow;
 
-        // ✅ IMPORTANTE: FORZAR ESTADO INICIAL
+        //IMPORTANTE: FORZAR ESTADO INICIAL
         order.Status = OrderStatus.Pending;
 
         await _repository.CreateAsync(order, ct);
@@ -115,7 +115,7 @@ public class OrdersController : ControllerBase
         await _hubContext.Clients.Group("cocina")
             .SendAsync("UpdateOrderStatus", id, OrderStatus.Ready.ToString());
 
-        // 🔔 Notificar a meseros
+        // Notificar a meseros
         await _hubContext.Clients.Group("waiters")
             .SendAsync("NotifyWaiterOrderReady", new
             {
