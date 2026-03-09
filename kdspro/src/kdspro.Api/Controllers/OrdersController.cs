@@ -1,9 +1,9 @@
-using kdspro.Domain.Entities;
-using kdspro.Domain.Interfaces;
-using kdspro.Domain.Enums;
-using kdspro.Api.Hubs; 
+
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
+using kdspro.Api.Hubs;
+using kdspro.Application.Interfaces;
+using kdspro.Application.DTOs;
 
 namespace kdspro.Api.Controllers;
 
@@ -11,169 +11,108 @@ namespace kdspro.Api.Controllers;
 [Route("api/[controller]")]
 public class OrdersController : ControllerBase
 {
-    private readonly IOrderRepository _repository;
-    private readonly IHubContext<OrdersHub> _hubContext;
+    private readonly IOrderService _orderService;
+    private readonly IHubContext<OrdersHub> _hub;
 
-    public OrdersController(IOrderRepository repository, IHubContext<OrdersHub> hubContext)
+    public OrdersController(
+        IOrderService orderService,
+        IHubContext<OrdersHub> hub)
     {
-        _repository = repository;
-        _hubContext = hubContext;
+        _orderService = orderService;
+        _hub = hub;
     }
 
-    /// <summary>
-    /// Obtiene todas las órdenes activas (Pending + Preparing)
-    /// </summary>
-    [HttpGet("active")]
-    public async Task<ActionResult<List<Order>>> Get(CancellationToken ct) 
+    // Crear orden
+    [HttpPost]
+    public async Task<IActionResult> CreateOrder([FromBody] CreateOrderDto dto)
     {
-        var orders = await _repository.GetActiveOrdersAsync(ct);
+        var order = await _orderService.CreateOrder(dto);
+
+        await _hub.Clients.Group("cocina")
+            .SendAsync("ReceiveOrder", order);
+
+        return Ok(order);
+    }
+
+    // Obtener órdenes activas
+    [HttpGet("active")]
+    public async Task<ActionResult<List<OrderDto>>> GetActiveOrders()
+    {
+        var orders = await _orderService.GetActiveOrders();
         return Ok(orders);
     }
 
-    /// <summary>
-    /// Obtener orden por ID
-    /// </summary>
-    [HttpGet("{id}")]
-    public async Task<ActionResult<Order>> GetById(string id, CancellationToken ct)
+    // Obtener órdenes listas
+    [HttpGet("ready")]
+    public async Task<ActionResult<List<OrderDto>>> GetReadyOrders()
     {
-        if (string.IsNullOrWhiteSpace(id))
-            return BadRequest(new { message = "Id inválido" });
-
-        var order = await _repository.GetByIdAsync(id, ct);
-
-        return order != null
-            ? Ok(order)
-            : NotFound(new { message = "Orden no encontrada" });
+        var orders = await _orderService.GetReadyOrders();
+        return Ok(orders);
     }
 
-    /// <summary>
-    /// Crear nueva orden
-    /// </summary>
-    [HttpPost]
-    public async Task<IActionResult> Post([FromBody] Order order, CancellationToken ct)
+    // Obtener historial
+    [HttpGet("history")]
+    public async Task<ActionResult<List<OrderDto>>> GetHistory()
     {
-        if (order == null || order.Items == null || !order.Items.Any())
-            return BadRequest(new { message = "Orden inválida" });
-
-        order.CreatedAt = DateTime.UtcNow;
-
-        //IMPORTANTE: FORZAR ESTADO INICIAL
-        order.Status = OrderStatus.Pending;
-
-        await _repository.CreateAsync(order, ct);
-
-        await _hubContext.Clients.Group("cocina")
-            .SendAsync("ReceiveOrder", order);
-
-        return CreatedAtAction(nameof(GetById), new { id = order.Id }, order);
+        var orders = await _orderService.GetHistory();
+        return Ok(orders);
     }
 
-    /// <summary>
-    /// Cambiar a Preparing
-    /// </summary>
+    // Cambiar a preparing
     [HttpPatch("{id}/preparing")]
-    public async Task<IActionResult> MarkAsPreparing(string id, CancellationToken ct)
+    public async Task<IActionResult> Preparing(string id)
     {
-        if (string.IsNullOrWhiteSpace(id))
-            return BadRequest(new { message = "Id inválido" });
+        await _orderService.SetPreparing(id);
 
-        var existingOrder = await _repository.GetByIdAsync(id, ct);
+        var order = await _orderService.GetOrderById(id);
 
-        if (existingOrder == null)
-            return NotFound(new { message = "Orden no encontrada" });
+        if (order == null)
+            return NotFound();
 
-        if (existingOrder.Status != OrderStatus.Pending)
-            return BadRequest(new { message = "La orden ya no está pendiente." });
+        await _hub.Clients.Group("cocina")
+            .SendAsync("OrderPreparing", order);
 
-        await _repository.UpdateStatusAsync(id, OrderStatus.Preparing, ct);
-
-        await _hubContext.Clients.Group("cocina")
-            .SendAsync("UpdateOrderStatus", id, OrderStatus.Preparing.ToString());
-
-        return Ok(new { id, status = OrderStatus.Preparing });
+        return Ok(order);
     }
 
-    /// <summary>
-    /// Cambiar a Ready
-    /// </summary>
+    // Cambiar a ready
     [HttpPatch("{id}/ready")]
-    public async Task<IActionResult> MarkAsReady(string id, CancellationToken ct)
+    public async Task<IActionResult> Ready(string id)
     {
-        if (string.IsNullOrWhiteSpace(id))
-            return BadRequest(new { message = "Id inválido" });
+        await _orderService.SetReady(id);
 
-        var existingOrder = await _repository.GetByIdAsync(id, ct);
+        var order = await _orderService.GetOrderById(id);
 
-        if (existingOrder == null)
-            return NotFound(new { message = "Orden no encontrada" });
+        if (order == null)
+            return NotFound();
 
-        if (existingOrder.Status != OrderStatus.Preparing)
-            return BadRequest(new { message = "La orden debe estar en preparación." });
+        await _hub.Clients.Group("waiters")
+            .SendAsync("OrderReady", order);
 
-        await _repository.UpdateStatusAsync(id, OrderStatus.Ready, ct);
-
-        await _hubContext.Clients.Group("cocina")
-            .SendAsync("UpdateOrderStatus", id, OrderStatus.Ready.ToString());
-
-        // Notificar a meseros
-        await _hubContext.Clients.Group("waiters")
-            .SendAsync("NotifyWaiterOrderReady", new
-            {
-                OrderId = id,
-                Table = existingOrder.TableNumber,
-                Customer = existingOrder.CustomerName
-            });
-
-        return Ok(new { id, status = OrderStatus.Ready });
+        return Ok(order);
     }
 
-    /// <summary>
-    /// Finalizar orden (Delivered)
-    /// </summary>
+    // Finalizar orden
     [HttpPatch("{id}/finish")]
-    public async Task<IActionResult> MarkAsFinished(string id, CancellationToken ct)
+    public async Task<IActionResult> Finish(string id)
     {
-        if (string.IsNullOrWhiteSpace(id))
-            return BadRequest(new { message = "Id inválido" });
+        await _orderService.SetFinished(id);
 
-        var existingOrder = await _repository.GetByIdAsync(id, ct);
+        await _hub.Clients.All
+            .SendAsync("OrderDelivered", id);
 
-        if (existingOrder == null)
-            return NotFound(new { message = "Orden no encontrada" });
-
-        if (existingOrder.Status != OrderStatus.Ready)
-            return BadRequest(new { message = "La orden no está lista." });
-
-        await _repository.UpdateStatusAsync(id, OrderStatus.Delivered, ct);
-
-        await _hubContext.Clients.All
-            .SendAsync("OrderFinalized", id);
-
-        return Ok(new { id, status = OrderStatus.Delivered });
+        return NoContent();
     }
 
-    /// <summary>
-    /// Cancelar orden
-    /// </summary>
+    // Cancelar orden
     [HttpPatch("{id}/cancel")]
-    public async Task<IActionResult> Cancel(string id, CancellationToken ct)
+    public async Task<IActionResult> Cancel(string id)
     {
-        if (string.IsNullOrWhiteSpace(id))
-            return BadRequest(new { message = "Id inválido" });
+        await _orderService.CancelOrder(id);
 
-        var existingOrder = await _repository.GetByIdAsync(id, ct);
-
-        if (existingOrder == null)
-            return NotFound(new { message = "Orden no encontrada" });
-
-        if (existingOrder.Status == OrderStatus.Delivered)
-            return BadRequest(new { message = "No se puede cancelar una orden entregada." });
-
-        await _repository.UpdateStatusAsync(id, OrderStatus.Cancelled, ct);
-
-        await _hubContext.Clients.All
+        await _hub.Clients.All
             .SendAsync("OrderCancelled", id);
 
-        return Ok(new { id, status = OrderStatus.Cancelled });
+        return NoContent();
     }
 }

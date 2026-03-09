@@ -4,39 +4,39 @@ namespace kdspro.Api.Hubs;
 
 public class OrdersHub : Hub
 {
-    // --- GRUPOS ---
+    private const string KitchenGroup = "cocina";
+    private const string WaiterGroup = "waiters";
 
+    // Unirse al grupo de cocina
     public async Task JoinKitchenGroup()
     {
-        await Groups.AddToGroupAsync(Context.ConnectionId, "cocina");
+        await Groups.AddToGroupAsync(Context.ConnectionId, KitchenGroup);
     }
 
+    // Unirse al grupo de meseros
     public async Task JoinWaiterGroup()
     {
-        await Groups.AddToGroupAsync(Context.ConnectionId, "waiters");
+        await Groups.AddToGroupAsync(Context.ConnectionId, WaiterGroup);
     }
 
-    // --- BROADCAST GENERAL ---
-
-    public async Task BroadcastOrderStatus(string orderId, string status)
+    // Cuando un cliente se conecta
+    public override async Task OnConnectedAsync()
     {
-        await Clients.All.SendAsync("OrderStatusChanged", new
-        {
-            orderId,
-            status,
-            timestamp = DateTime.UtcNow
-        });
+        Console.WriteLine($"Cliente conectado: {Context.ConnectionId}");
+
+        await base.OnConnectedAsync();
     }
 
-    // --- NOTIFICACIÓN A MESEROS ---
-
-    public async Task NotifyWaiterOrderReady(string orderId, int tableNumber, string customerName)
+    // Cuando un cliente se desconecta
+    public override async Task OnDisconnectedAsync(Exception? exception)
     {
-        await Clients.Group("waiters").SendAsync("NotifyWaiterOrderReady", new
+        Console.WriteLine($"Cliente desconectado: {Context.ConnectionId}");
+
+        if (exception != null)
         {
-            orderId,
-            tableNumber,
-            customerName
-        });
+            Console.WriteLine($"Error: {exception.Message}");
+        }
+
+        await base.OnDisconnectedAsync(exception);
     }
 }

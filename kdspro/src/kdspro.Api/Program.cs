@@ -2,7 +2,8 @@ using kdspro.Domain.Interfaces;
 using kdspro.Infrastructure.Repositories;
 using kdspro.Infrastructure.Persistence;
 using kdspro.Api.Hubs;
-using kdspro.Domain.Entities;
+using kdspro.Application.Services;
+using kdspro.Application.Interfaces;
 using MongoDB.Driver;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -12,7 +13,8 @@ builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 
 // --- CONTROLADORES ---
-builder.Services.AddControllers().AddNewtonsoftJson(options =>
+builder.Services.AddControllers()
+.AddNewtonsoftJson(options =>
 {
     options.SerializerSettings.Converters.Add(
         new Newtonsoft.Json.Converters.StringEnumConverter()
@@ -32,7 +34,7 @@ builder.Services.AddSignalR(options =>
 // --- CORS ---
 var allowedOrigins = builder.Configuration
     .GetSection("Cors:Origins")
-    .Get<string[]>() 
+    .Get<string[]>()
     ?? new[] { "http://localhost:5173", "http://localhost:5174" };
 
 builder.Services.AddCors(options =>
@@ -48,9 +50,12 @@ builder.Services.AddCors(options =>
 
 // --- DEPENDENCIAS ---
 builder.Services.AddSingleton<MongoDbContext>();
+
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 builder.Services.AddScoped<ITableRepository, TableRepository>();
+
+builder.Services.AddScoped<IOrderService, OrderService>();
 
 var app = builder.Build();
 
@@ -69,25 +74,25 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-// --- SIGNALR ---
-app.MapHub<OrdersHub>("/ordersHub", options =>
-{
-    options.AllowStatefulReconnects = true;
-});
+// --- SIGNALR HUB ---
+app.MapHub<OrdersHub>("/ordersHub");
 
-// --- SEED ---
+// --- SEED DE BASE DE DATOS ---
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
+
     try
     {
         var context = services.GetRequiredService<MongoDbContext>();
+
         await DbSeeder.SeedProducts(context.Products);
+
         Console.WriteLine(">>> Base de datos poblada correctamente");
     }
     catch (Exception ex)
     {
-        Console.WriteLine($">>> Error: {ex.Message}");
+        Console.WriteLine($">>> Error al sembrar datos: {ex.Message}");
     }
 }
 
