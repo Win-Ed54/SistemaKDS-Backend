@@ -48,4 +48,11 @@ public class MongoDbContext
     /// Colección principal para el flujo del KDS (Pedidos, Tiempos FIFO, Estados).
     /// </summary>
     public IMongoCollection<Order> Orders => _database.GetCollection<Order>("Orders");
+
+    /// <summary>
+    /// Colección de mesas del restaurante.
+    /// Permite al mesero seleccionar dónde se asignará una orden.
+    /// </summary>
+    public IMongoCollection<Table> Tables => _database.GetCollection<Table>("Tables");
+
 }
