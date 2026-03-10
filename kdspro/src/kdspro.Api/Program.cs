@@ -54,8 +54,9 @@ builder.Services.AddSingleton<MongoDbContext>();
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 builder.Services.AddScoped<ITableRepository, TableRepository>();
-
 builder.Services.AddScoped<IOrderService, OrderService>();
+
+
 
 var app = builder.Build();
 
@@ -95,5 +96,14 @@ using (var scope = app.Services.CreateScope())
         Console.WriteLine($">>> Error al sembrar datos: {ex.Message}");
     }
 }
+
+using (var scope = app.Services.CreateScope())
+{
+    var context = scope.ServiceProvider.GetRequiredService<MongoDbContext>();
+
+    await DbSeeder.SeedProducts(context.Products);
+    await DbSeeder.SeedTables(context.Tables);
+}
+
 
 app.Run();
