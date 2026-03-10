@@ -34,7 +34,7 @@ builder.Services.AddSignalR(options =>
 // --- CORS ---
 var allowedOrigins = builder.Configuration
     .GetSection("Cors:Origins")
-    .Get<string[]>()
+    .Get<string[]>() 
     ?? new[] { "http://localhost:5173", "http://localhost:5174" };
 
 builder.Services.AddCors(options =>
@@ -49,12 +49,24 @@ builder.Services.AddCors(options =>
 });
 
 // --- DEPENDENCIAS ---
+builder.Services.AddSingleton<IMongoClient>(sp =>
+{
+    return new MongoClient("mongodb://mongodb:27017");
+});
+
+builder.Services.AddScoped<IMongoDatabase>(sp =>
+{
+    var client = sp.GetRequiredService<IMongoClient>();
+    return client.GetDatabase("kdspro");
+});
+
 builder.Services.AddSingleton<MongoDbContext>();
 
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 builder.Services.AddScoped<ITableRepository, TableRepository>();
 builder.Services.AddScoped<IOrderService, OrderService>();
+builder.Services.AddScoped<UserRepository>();
 
 
 
@@ -88,6 +100,7 @@ using (var scope = app.Services.CreateScope())
         var context = services.GetRequiredService<MongoDbContext>();
 
         await DbSeeder.SeedProducts(context.Products);
+        await DbSeeder.SeedTables(context.Tables);
 
         Console.WriteLine(">>> Base de datos poblada correctamente");
     }
@@ -96,14 +109,5 @@ using (var scope = app.Services.CreateScope())
         Console.WriteLine($">>> Error al sembrar datos: {ex.Message}");
     }
 }
-
-using (var scope = app.Services.CreateScope())
-{
-    var context = scope.ServiceProvider.GetRequiredService<MongoDbContext>();
-
-    await DbSeeder.SeedProducts(context.Products);
-    await DbSeeder.SeedTables(context.Tables);
-}
-
 
 app.Run();
