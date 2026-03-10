@@ -51,4 +51,26 @@ public static class DbSeeder
         // Optimizamos el rendimiento del inicio de la aplicación.
         await collection.InsertManyAsync(wendysMenu);
     }
+
+    /// <summary>
+    /// Carga inicial de mesas del restaurante.
+    /// Solo se ejecuta si la colección está vacía.
+    /// </summary>
+    public static async Task SeedTables(IMongoCollection<Table> collection)
+    {
+        if (await collection.CountDocumentsAsync(_ => true) > 0) return;
+
+        var tables = new List<Table>
+    {
+        new() { Number = 1, Name = "Mesa 1", Capacity = 4, IsActive = true },
+        new() { Number = 2, Name = "Mesa 2", Capacity = 4, IsActive = true },
+        new() { Number = 3, Name = "Mesa 3", Capacity = 4, IsActive = true },
+        new() { Number = 4, Name = "Mesa 4", Capacity = 6, IsActive = true },
+        new() { Number = 5, Name = "Mesa 5", Capacity = 2, IsActive = true },
+        new() { Number = 6, Name = "Mesa 6", Capacity = 8, IsActive = true }
+    };
+
+        await collection.InsertManyAsync(tables);
+    }
+
 }
