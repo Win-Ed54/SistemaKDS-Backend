@@ -73,4 +73,40 @@ public static class DbSeeder
         await collection.InsertManyAsync(tables);
     }
 
+    public static async Task SeedUsers(IMongoCollection<User> users)
+    {
+        var count = await users.CountDocumentsAsync(_ => true);
+
+        if(count > 0)
+         return;
+
+        var admin = new User
+        {
+          Username = "admin",
+          PasswordHash = BCrypt.Net.BCrypt.HashPassword("admin123"),
+          Role = "admin"  
+        }; 
+
+        var cocina = new User
+        {
+          Username = "cocina",
+          PasswordHash = BCrypt.Net.BCrypt.HashPassword("cocina123"),
+          Role = "kitchen"  
+        };
+
+        var mesero = new User
+        {
+          Username = "mesero",
+          PasswordHash = BCrypt.Net.BCrypt.HashPassword("mesero123"),
+          Role = "waiter"  
+        }; 
+
+        await users.InsertManyAsync(new List<User>
+        {
+           admin,
+           cocina,
+           mesero
+        }); 
+    }
+
 }
