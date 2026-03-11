@@ -86,6 +86,8 @@ app.UseCors("AllowAll");
 
 app.UseAuthorization();
 
+app.UseAuthentication();
+
 app.MapControllers();
 
 // --- SIGNALR HUB ---
