@@ -1,6 +1,7 @@
 using MongoDB.Driver;
 using kdspro.Domain.Entities;
 using Microsoft.Extensions.Configuration;
+using MongoDB.Driver.Core.Configuration;
 
 namespace kdspro.Infrastructure.Persistence;
 
@@ -26,12 +27,13 @@ public class MongoDbContext
     {
         // 1. OBTENCIÓN DE CONFIGURACIÓN: Extraemos los valores del archivo appsettings.json
         // Esto permite cambiar de base de datos local (Docker) a una de producción sin cambiar el código.
-        var connectionString = configuration.GetSection("MongoDB:ConnectionString").Value
+        var connectionString = configuration["MongoDB:ConnectionString"]
                                                  ?? "mongodb://localhost:27017";
-        var databaseName = configuration.GetSection("MongoDB:DatabaseName").Value
+        var databaseName = configuration["MongoDB:DatabaseName"]
                                                  ?? "KDS";
+        var settings = MongoClientSettings.FromConnectionString(connectionString);
         // 2. CONEXIÓN AL CLIENTE: Creamos el cliente de MongoDB (Singleton recomendado internamente por el Driver)
-        var client = new MongoClient(connectionString);
+        var client = new MongoClient(settings);
         
         // 3. SELECCIÓN DE DB: Referenciamos la base de datos específica (Ej: KdsDatabase)
         _database = client.GetDatabase(databaseName);
@@ -54,5 +56,7 @@ public class MongoDbContext
     /// Permite al mesero seleccionar dónde se asignará una orden.
     /// </summary>
     public IMongoCollection<Table> Tables => _database.GetCollection<Table>("Tables");
+
+    public IMongoCollection<User> Users => _database.GetCollection<User>("Users");
 
 }
