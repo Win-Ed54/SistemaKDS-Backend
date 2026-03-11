@@ -1,22 +1,24 @@
 using MongoDB.Driver;
 using kdspro.Domain.Entities;
+using kdspro.Domain.Interfaces;
+using kdspro.Infrastructure.Persistence;
 
 namespace kdspro.Infrastructure.Repositories;
 
-public class UserRepository
+public class UserRepository : IUserRepository
 {
-    private readonly IMongoCollection<User>_users;
+    private readonly IMongoCollection<User> _users;
 
-    public UserRepository(IMongoDatabase database)
+    public UserRepository(MongoDbContext context)
     {
-        _users = database.GetCollection<User>("Users");
+        _users = context.Users;
     }
 
-    public async Task<User> GetByUsername(string username)
+    public async Task<User?> GetByUsername(string username)
     {
         return await _users
-               .Find(u => u.Username == username)
-               .FirstOrDefaultAsync();
+            .Find(u => u.Username == username)
+            .FirstOrDefaultAsync();
     }
 
     public async Task Create(User user)
