@@ -25,7 +25,7 @@ public class OrdersController : ControllerBase
     }
 
     // Crear orden
-    [Authorize(Roles = "waiter")]
+    [Authorize(Roles = "waiter,admin")]
     [HttpPost]
     public async Task<IActionResult> CreateOrder([FromBody] CreateOrderDto dto)
     {
@@ -38,7 +38,7 @@ public class OrdersController : ControllerBase
     }
 
     // Obtener órdenes activas
-    [Authorize(Roles = "kitchen")]
+    [Authorize(Roles = "kitchen,admin")]
     [HttpGet("active")]
     public async Task<ActionResult<List<OrderDto>>> GetActiveOrders()
     {
@@ -47,7 +47,7 @@ public class OrdersController : ControllerBase
     }
 
     // Obtener órdenes listas
-    [Authorize(Roles = "kitchen")]
+    [Authorize(Roles = "kitchen,admin")]
     [HttpGet("ready")]
     public async Task<ActionResult<List<OrderDto>>> GetReadyOrders()
     {
@@ -56,7 +56,7 @@ public class OrdersController : ControllerBase
     }
 
     // Obtener historial
-    [Authorize(Roles = "kitchen")]
+    [Authorize(Roles = "kitchen,admin")]
     [HttpGet("history")]
     public async Task<ActionResult<List<OrderDto>>> GetHistory()
     {
@@ -65,7 +65,7 @@ public class OrdersController : ControllerBase
     }
 
     // Cambiar a preparing
-    [Authorize(Roles = "kitchen")]
+    [Authorize(Roles = "kitchen,admin")]
     [HttpPatch("{id}/preparing")]
     public async Task<IActionResult> Preparing(string id)
     {
@@ -83,7 +83,7 @@ public class OrdersController : ControllerBase
     }
 
     // Cambiar a ready
-    [Authorize(Roles = "kitchen")]
+    [Authorize(Roles = "kitchen,admin")]
     [HttpPatch("{id}/ready")]
     public async Task<IActionResult> Ready(string id)
     {
@@ -101,7 +101,7 @@ public class OrdersController : ControllerBase
     }
 
     // Finalizar orden
-    [Authorize(Roles = "kitchen")]
+    [Authorize(Roles = "kitchen,admin")]
     [HttpPatch("{id}/finish")]
     public async Task<IActionResult> Finish(string id)
     {
