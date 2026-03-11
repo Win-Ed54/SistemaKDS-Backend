@@ -66,7 +66,8 @@ builder.Services.AddScoped<IProductRepository, ProductRepository>();
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 builder.Services.AddScoped<ITableRepository, TableRepository>();
 builder.Services.AddScoped<IOrderService, OrderService>();
-builder.Services.AddScoped<UserRepository>();
+builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<AuthService>();
 
 
 
@@ -101,6 +102,7 @@ using (var scope = app.Services.CreateScope())
 
         await DbSeeder.SeedProducts(context.Products);
         await DbSeeder.SeedTables(context.Tables);
+        await DbSeeder.SeedUsers(context.Users);
 
         Console.WriteLine(">>> Base de datos poblada correctamente");
     }
