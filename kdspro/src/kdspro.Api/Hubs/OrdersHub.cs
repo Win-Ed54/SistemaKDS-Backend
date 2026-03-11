@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.AspNetCore.Authorization;
 
 namespace kdspro.Api.Hubs;
 
+[Authorize]
 public class OrdersHub : Hub
 {
     private const string KitchenGroup = "cocina";
