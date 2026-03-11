@@ -3,7 +3,9 @@ using kdspro.Application.Services;
 using kdspro.Application.DTOs;
 using kdspro.Infrastructure.Persistence;
 using MongoDB.Driver;
+using Microsoft.AspNetCore.Authorization;
 
+[AllowAnonymous]
 [ApiController]
 [Route("api/auth")]
 public class AuthController : ControllerBase
