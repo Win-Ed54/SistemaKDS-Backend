@@ -29,9 +29,12 @@ services:
       mongodb:
         condition: service_healthy
     environment:
-      - MongoDB__ConnectionString=mongodb://admin:secret@mongodb:27017
+      - MongoDB__ConnectionString=mongodb://admin:secret@mongodb:27017/?authSource=admin
       - MongoDB__DatabaseName=KDS
       - ASPNETCORE_ENVIRONMENT=Development
+      - Jwt__Key=THIS_IS_A_SUPER_SECRET_KEY_FOR_KDS_SYSTEM_2026_BACKEND
+      - Jwt__Issuer=kds-api
+      - Jwt__Audience=kds-client
     networks:
       - kds-network
 
