@@ -4,11 +4,13 @@ using Microsoft.AspNetCore.SignalR;
 using kdspro.Api.Hubs;
 using kdspro.Application.Interfaces;
 using kdspro.Application.DTOs;
+using Microsoft.AspNetCore.Authorization;
 
 namespace kdspro.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize]
 public class OrdersController : ControllerBase
 {
     private readonly IOrderService _orderService;
@@ -23,6 +25,7 @@ public class OrdersController : ControllerBase
     }
 
     // Crear orden
+    [Authorize(Roles = "waiter")]
     [HttpPost]
     public async Task<IActionResult> CreateOrder([FromBody] CreateOrderDto dto)
     {
@@ -35,6 +38,7 @@ public class OrdersController : ControllerBase
     }
 
     // Obtener órdenes activas
+    [Authorize(Roles = "kitchen")]
     [HttpGet("active")]
     public async Task<ActionResult<List<OrderDto>>> GetActiveOrders()
     {
@@ -43,6 +47,7 @@ public class OrdersController : ControllerBase
     }
 
     // Obtener órdenes listas
+    [Authorize(Roles = "kitchen")]
     [HttpGet("ready")]
     public async Task<ActionResult<List<OrderDto>>> GetReadyOrders()
     {
@@ -51,6 +56,7 @@ public class OrdersController : ControllerBase
     }
 
     // Obtener historial
+    [Authorize(Roles = "kitchen")]
     [HttpGet("history")]
     public async Task<ActionResult<List<OrderDto>>> GetHistory()
     {
@@ -59,6 +65,7 @@ public class OrdersController : ControllerBase
     }
 
     // Cambiar a preparing
+    [Authorize(Roles = "kitchen")]
     [HttpPatch("{id}/preparing")]
     public async Task<IActionResult> Preparing(string id)
     {
@@ -76,6 +83,7 @@ public class OrdersController : ControllerBase
     }
 
     // Cambiar a ready
+    [Authorize(Roles = "kitchen")]
     [HttpPatch("{id}/ready")]
     public async Task<IActionResult> Ready(string id)
     {
@@ -93,6 +101,7 @@ public class OrdersController : ControllerBase
     }
 
     // Finalizar orden
+    [Authorize(Roles = "kitchen")]
     [HttpPatch("{id}/finish")]
     public async Task<IActionResult> Finish(string id)
     {
@@ -105,6 +114,7 @@ public class OrdersController : ControllerBase
     }
 
     // Cancelar orden
+    [Authorize(Roles = "admin")]
     [HttpPatch("{id}/cancel")]
     public async Task<IActionResult> Cancel(string id)
     {
