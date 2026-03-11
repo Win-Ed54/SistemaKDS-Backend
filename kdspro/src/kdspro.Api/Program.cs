@@ -6,6 +6,10 @@ using kdspro.Application.Services;
 using kdspro.Application.Interfaces;
 using MongoDB.Driver;
 
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // --- LOGGING ---
@@ -22,7 +26,74 @@ builder.Services.AddControllers()
 });
 
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+    {
+       Name = "Authorization",
+       Type = Microsoft.OpenApi.Models.SecuritySchemeType.Http,
+       Scheme = "bearer",
+       BearerFormat = "JWT",
+       In = Microsoft.OpenApi.Models.ParameterLocation.Header,
+       Description = "Ingresa el token JWT aqui:"  
+    });
+
+    options.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
+    {
+        {
+            new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+            {
+                Reference = new Microsoft.OpenApi.Models.OpenApiReference
+                {
+                    Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            new string [] {}
+        }
+    });
+});
+
+// ---JWT AUTHENTICATION ---
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+.AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+
+        ValidIssuer = builder.Configuration["Jwt:Issuer"],
+        ValidAudience = builder.Configuration["Jwt:Audience"],
+
+        IssuerSigningKey = new SymmetricSecurityKey(
+            Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"])
+        )
+    };
+
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+           var accessToken = context.Request.Query["access_token"];
+
+           var path = context.HttpContext.Request.Path;
+           if(!string.IsNullOrEmpty(accessToken) &&
+           path.StartsWithSegments("/ordersHub"))
+            {
+                context.Token = accessToken;
+            } 
+
+            return Task.CompletedTask;
+        }
+    };    
+});
+
+
+
+builder.Services.AddAuthorization();
 
 // --- SIGNALR ---
 builder.Services.AddSignalR(options =>
@@ -61,7 +132,6 @@ builder.Services.AddScoped<IMongoDatabase>(sp =>
 });
 
 builder.Services.AddSingleton<MongoDbContext>();
-
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 builder.Services.AddScoped<ITableRepository, TableRepository>();
@@ -84,9 +154,9 @@ app.UseHttpsRedirection();
 
 app.UseCors("AllowAll");
 
-app.UseAuthorization();
-
 app.UseAuthentication();
+
+app.UseAuthorization();
 
 app.MapControllers();
 
