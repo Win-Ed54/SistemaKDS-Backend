@@ -1,34 +1,37 @@
 using Microsoft.AspNetCore.Mvc;
+using kdspro.Application.Services;
 using kdspro.Application.DTOs;
-using kdspro.Infrastructure.Repositories;
-
-namespace kdspro.Api.Controllers;
+using kdspro.Infrastructure.Persistence;
+using MongoDB.Driver;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/auth")]
 public class AuthController : ControllerBase
 {
-    private readonly UserRepository _users;
+    private readonly AuthService _auth;
+    private readonly MongoDbContext _context;
 
-    public AuthController(UserRepository users)
+    public AuthController(AuthService auth, MongoDbContext context)
     {
-        _users = users;
+        _auth = auth;
+        _context = context;
     }
 
     [HttpPost("login")]
     public async Task<IActionResult> Login(LoginDto dto)
     {
-        var user = await _users.GetByUsername(dto.Username);
+        var token = await _auth.Login(dto.Username, dto.Password);
 
-        if(user == null)
-           return Unauthorized("Usuario no exite");
-        if(user.PasswordHash != dto.Password)
-           return Unauthorized("Password incorrecto");
+        if (token == null)
+            return Unauthorized("Credenciales incorrectas");
 
-        return Ok(new
-        {
-          username = user.Username,
-          role = user.Role  
-        });     
+        return Ok(new { token });
+    }
+
+    [HttpGet("test-mongo")]
+    public async Task<IActionResult> TestMongo()
+    {
+        var users = await _context.Users.Find(_ => true).ToListAsync();
+        return Ok(users.Count);
     }
 }
