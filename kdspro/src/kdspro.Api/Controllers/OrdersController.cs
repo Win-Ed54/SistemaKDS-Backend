@@ -110,7 +110,7 @@ public class OrdersController : ControllerBase
         await _hub.Clients.All
             .SendAsync("OrderDelivered", id);
 
-        return NoContent();
+        return Ok(new {id, message = "Orden entregada con exito"});
     }
 
     // Cancelar orden
