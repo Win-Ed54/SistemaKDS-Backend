@@ -3,21 +3,49 @@ using kdspro.Application.Interfaces;
 using kdspro.Domain.Entities;
 using kdspro.Domain.Enums;
 using kdspro.Domain.Interfaces;
+using Microsoft.AspNetCore.SignalR;
+using MongoDB.Driver;
 
 namespace kdspro.Application.Services;
 
 public class OrderService : IOrderService
 {
     private readonly IOrderRepository _orderRepository;
+    private readonly IProductRepository _productRepository;
+    private readonly IOrderNotificationService _notificationService;
 
-    public OrderService(IOrderRepository orderRepository)
+    public OrderService(IOrderRepository orderRepository,
+    IProductRepository productRepository,
+    IOrderNotificationService notificationService)
     {
         _orderRepository = orderRepository;
+        _productRepository = productRepository;
+        _notificationService = notificationService; 
     }
 
     // Crear nueva orden
     public async Task<OrderDto> CreateOrder(CreateOrderDto dto)
     {
+        // 1. VALIDACIÓN Y DESCUENTO DE STOCK (Bucle solo para stock)
+        foreach (var item in dto.Items)
+        {
+            // Usamos el método atómico del repositorio que ya definimos
+            bool success = await _productRepository.DeductStockAsync(item.ProductId, item.Quantity);
+
+            if (!success)
+            {
+                throw new Exception($"Stock insuficiente para: {item.ProductName}");
+            }
+
+            // Notificación si se agotó
+            var updatedProduct = await _productRepository.GetByIdAsync(item.ProductId);
+            if (updatedProduct != null && updatedProduct.Stock <= 0)
+            {
+                await _notificationService.NotifyProductOutOfStock(item.ProductId);
+            }
+        }
+
+        // 2. CREACIÓN DE LA ORDEN (Fuera del bucle)
         var order = new Order
         {
             TableNumber = dto.TableNumber,
@@ -25,21 +53,23 @@ public class OrderService : IOrderService
             WaiterName = dto.WaiterName,
             Status = OrderStatus.Pending,
             CreatedAt = DateTime.UtcNow,
-
             Items = dto.Items.Select(i => new OrderItem
             {
                 ProductId = i.ProductId,
                 ProductName = i.ProductName,
                 Quantity = i.Quantity,
-                Modifiers = i.Modifiers ?? new List<string>(),
                 Notes = i.Notes ?? ""
             }).ToList()
         };
 
         await _orderRepository.CreateAsync(order);
 
+        // 3. NOTIFICAR NUEVA ORDEN A COCINA
+        await _notificationService.NotifyNewOrder(order);
+
         return MapToDto(order);
     }
+
 
     // Obtener orden por ID
     public async Task<OrderDto?> GetOrderById(string id)

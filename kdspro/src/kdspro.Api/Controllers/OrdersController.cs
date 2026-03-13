@@ -5,6 +5,7 @@ using kdspro.Api.Hubs;
 using kdspro.Application.Interfaces;
 using kdspro.Application.DTOs;
 using Microsoft.AspNetCore.Authorization;
+using System.Linq.Expressions;
 
 namespace kdspro.Api.Controllers;
 
@@ -29,12 +30,19 @@ public class OrdersController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> CreateOrder([FromBody] CreateOrderDto dto)
     {
+        try{
         var order = await _orderService.CreateOrder(dto);
 
         await _hub.Clients.Group("kitchen")
             .SendAsync("ReceiveOrder", order);
 
         return Ok(order);
+        }
+        catch (Exception ex){
+                return BadRequest(new { error = ex.Message });
+            }
+            
+        
     }
 
     // Obtener órdenes activas
