@@ -31,7 +31,7 @@ public class OrdersController : ControllerBase
     {
         var order = await _orderService.CreateOrder(dto);
 
-        await _hub.Clients.Group("cocina")
+        await _hub.Clients.Group("kitchen")
             .SendAsync("ReceiveOrder", order);
 
         return Ok(order);
@@ -76,7 +76,7 @@ public class OrdersController : ControllerBase
         if (order == null)
             return NotFound();
 
-        await _hub.Clients.Group("cocina")
+        await _hub.Clients.Group("kitchen")
             .SendAsync("OrderPreparing", order);
 
         return Ok(order);
@@ -94,7 +94,7 @@ public class OrdersController : ControllerBase
         if (order == null)
             return NotFound();
 
-        await _hub.Clients.Group("waiters")
+        await _hub.Clients.All
             .SendAsync("OrderReady", order);
 
         return Ok(order);

@@ -22,12 +22,16 @@ public class AuthController : ControllerBase
     [HttpPost("login")]
     public async Task<IActionResult> Login(LoginDto dto)
     {
-        var token = await _auth.Login(dto.Username, dto.Password);
+        var result = await _auth.Login(dto.Username, dto.Password);
 
-        if (token == null)
+        if (result.token == null)
             return Unauthorized("Credenciales incorrectas");
 
-        return Ok(new { token });
+        return Ok(new
+        {
+            token = result.token,
+            role = result.role
+        });
     }
 
     [HttpGet("test-mongo")]

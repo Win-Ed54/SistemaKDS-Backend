@@ -6,8 +6,8 @@ namespace kdspro.Api.Hubs;
 [Authorize]
 public class OrdersHub : Hub
 {
-    private const string KitchenGroup = "cocina";
-    private const string WaiterGroup = "waiters";
+    private const string KitchenGroup = "kitchen";
+    private const string WaiterGroup = "waiter";
 
     // Unirse al grupo de cocina
     public async Task JoinKitchenGroup()

@@ -3,6 +3,7 @@ using kdspro.Domain.Interfaces;
 using kdspro.Infrastructure.Persistence;
 using MongoDB.Driver;
 using kdspro.Domain.Enums;
+using MongoDB.Bson;
 
 namespace kdspro.Infrastructure.Repositories;
 
@@ -28,7 +29,7 @@ public class OrderRepository : GenericRepository<Order>, IOrderRepository
     /// </summary>
     public async Task UpdateStatusAsync(string id, OrderStatus status, CancellationToken ct = default)
     {
-        var filter = Builders<Order>.Filter.Eq(o => o.Id, id);
+        var filter = Builders<Order>.Filter.Eq("_id", new ObjectId(id));
 
         var update = Builders<Order>.Update.Set(o => o.Status, status);
 

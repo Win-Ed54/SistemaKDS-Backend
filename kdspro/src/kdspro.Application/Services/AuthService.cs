@@ -18,18 +18,21 @@ public class AuthService
         _configuration = configuration;
     }
 
-    public async Task<string?> Login(string username, string password)
+    public async Task<(string? token, string? role)> Login(string username, string password)
     {
         var user = await _users.GetByUsername(username);
 
         if (user == null)
-            return null;
+            return (null, null);
 
         if (!BCrypt.Net.BCrypt.Verify(password, user.PasswordHash))
-            return null;
+            return (null, null);
 
-        return GenerateToken(user);
+        var token = GenerateToken(user);
+
+        return (token, user.Role);
     }
+
 
     private string GenerateToken(User user)
     {

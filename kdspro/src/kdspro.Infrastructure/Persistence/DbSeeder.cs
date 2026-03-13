@@ -87,25 +87,25 @@ public static class DbSeeder
           Role = "admin"  
         }; 
 
-        var cocina = new User
+        var kitchen = new User
         {
-          Username = "cocina",
-          PasswordHash = BCrypt.Net.BCrypt.HashPassword("cocina123"),
+          Username = "kitchen",
+          PasswordHash = BCrypt.Net.BCrypt.HashPassword("kitchen123"),
           Role = "kitchen"  
         };
 
-        var mesero = new User
+        var waiter = new User
         {
-          Username = "mesero",
-          PasswordHash = BCrypt.Net.BCrypt.HashPassword("mesero123"),
+          Username = "waiter",
+          PasswordHash = BCrypt.Net.BCrypt.HashPassword("waiter123"),
           Role = "waiter"  
         }; 
 
         await users.InsertManyAsync(new List<User>
         {
            admin,
-           cocina,
-           mesero
+           kitchen,
+           waiter
         }); 
     }
 
