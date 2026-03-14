@@ -24,8 +24,12 @@ public class OrderService : IOrderService
     }
 
     // Crear nueva orden
+        // Crear nueva orden
     public async Task<OrderDto> CreateOrder(CreateOrderDto dto)
     {
+        // --- NUEVO: Diccionario para capturar el stock real tras la resta ---
+        var updatedStocks = new Dictionary<string, int>();
+
         // 1. VALIDACIÓN Y DESCUENTO DE STOCK (Bucle solo para stock)
         foreach (var item in dto.Items)
         {
@@ -39,13 +43,19 @@ public class OrderService : IOrderService
 
             // Notificación si se agotó
             var updatedProduct = await _productRepository.GetByIdAsync(item.ProductId);
-            if (updatedProduct != null && updatedProduct.Stock <= 0)
+            if (updatedProduct != null)
             {
-                await _notificationService.NotifyProductOutOfStock(item.ProductId);
+                // --- NUEVO: Guardamos el stock actual en nuestro diccionario ---
+                updatedStocks[item.ProductId] = updatedProduct.Stock;
+
+                if (updatedProduct.Stock <= 0)
+                {
+                    await _notificationService.NotifyProductOutOfStock(item.ProductId);
+                }
             }
         }
 
-        // 2. CREACIÓN DE LA ORDEN (Fuera del bucle)
+        // 2. CREACIÓN DE LA ORDEN (Fuera del bucle - Tu lógica original)
         var order = new Order
         {
             TableNumber = dto.TableNumber,
@@ -67,10 +77,19 @@ public class OrderService : IOrderService
         // 3. NOTIFICAR NUEVA ORDEN A COCINA
         await _notificationService.NotifyNewOrder(order);
 
-        return MapToDto(order);
+        // --- NUEVO: Mapeamos a DTO y le inyectamos los valores de stock capturados ---
+        var resultDto = MapToDto(order);
+
+        foreach (var itemDto in resultDto.Items)
+        {
+            if (updatedStocks.TryGetValue(itemDto.ProductId, out int currentStock))
+            {
+                itemDto.CurrentStock = currentStock;
+            }
+        }
+
+        return resultDto;
     }
-
-
     // Obtener orden por ID
     public async Task<OrderDto?> GetOrderById(string id)
     {

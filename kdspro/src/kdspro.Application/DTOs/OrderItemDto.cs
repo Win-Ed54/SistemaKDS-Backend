@@ -13,5 +13,8 @@ public class OrderItemDto
     public List<string>? Modifiers { get; set; }
 
     public string? Notes { get; set; }
+
+    public int CurrentStock { get; set; } // El stock que queda después de la venta
+
 }
 

@@ -27,23 +27,37 @@ public class OrdersController : ControllerBase
 
     // Crear orden
     [Authorize(Roles = "waiter,admin")]
-    [HttpPost]
-    public async Task<IActionResult> CreateOrder([FromBody] CreateOrderDto dto)
+[HttpPost]
+public async Task<IActionResult> CreateOrder([FromBody] CreateOrderDto dto)
+{
+    try
     {
-        try{
+        // 1. Se crea la orden y el servicio descuenta el stock en la DB
         var order = await _orderService.CreateOrder(dto);
 
+        // 2. Notificar a la COCINA que hay una nueva orden
         await _hub.Clients.Group("kitchen")
-            .SendAsync("ReceiveOrder", order);
+            .SendAsync("receiveorder", order);
+
+        // 3. NOTIFICAR A LOS MESEROS EL NUEVO STOCK (Lo que faltaba)
+        // Recorremos los ítems de la orden recién creada
+        foreach (var item in order.Items)
+        {
+            // Enviamos el evento 'stockupdated' con el ID del producto y su NUEVO stock
+            // Asegúrate de que tu OrderDetailDto tenga la propiedad 'CurrentStock' o similar
+            await _hub.Clients.Group("waiter")
+                .SendAsync("stockupdated", item.ProductId, item.CurrentStock); 
+        }
 
         return Ok(order);
-        }
-        catch (Exception ex){
-                return BadRequest(new { error = ex.Message });
-            }
-            
-        
     }
+    catch (Exception ex)
+    {
+        // Aquí es donde cae el error de "Stock insuficiente" que vimos antes
+        return BadRequest(new { error = ex.Message });
+    }
+}
+
 
     // Obtener órdenes activas
     [Authorize(Roles = "kitchen,admin")]
