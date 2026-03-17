@@ -33,7 +33,7 @@ public class AuthController : ControllerBase
             role = result.role
         });
     }
-
+    [Authorize(Roles ="admin")]
     [HttpGet("test-mongo")]
     public async Task<IActionResult> TestMongo()
     {
