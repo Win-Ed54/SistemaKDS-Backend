@@ -11,7 +11,6 @@ public class OrderRepository : GenericRepository<Order>, IOrderRepository
 {
     public OrderRepository(MongoDbContext context) : base(context, "Orders")
     {
-        // Índice para optimizar consultas FIFO
         var indexKeys = Builders<Order>.IndexKeys
             .Ascending(o => o.Status)
             .Ascending(o => o.CreatedAt);
@@ -24,32 +23,45 @@ public class OrderRepository : GenericRepository<Order>, IOrderRepository
         _collection.Indexes.CreateOne(indexModel);
     }
 
-    /// <summary>
-    /// Actualiza el estado y gestiona automáticamente los tiempos.
-    /// </summary>
-    public async Task UpdateStatusAsync(string id, OrderStatus status, CancellationToken ct = default)
+    // --- IMPLEMENTACIÓN DE LA INTERFAZ ---
+
+    // 1. Método requerido: UpdateStatusAsync (3 parámetros)
+    public async Task UpdateStatusAsync(string id, OrderStatus status, CancellationToken ct)
+    {
+        await ExecuteUpdateStatusAsync(id, status, null, null, ct);
+    }
+
+    // 2. Método requerido: UpdateStatusAsync (5 parámetros)
+    // Nota: Eliminamos los "= null" para que coincida exactamente con la interfaz
+    public async Task UpdateStatusAsync(string id, OrderStatus status, DateTime? startedAt, DateTime? readyAt, CancellationToken ct)
+    {
+        await ExecuteUpdateStatusAsync(id, status, startedAt, readyAt, ct);
+    }
+
+    // 3. Método requerido: UpdateStatusWithTimeAsync
+    public async Task UpdateStatusWithTimeAsync(string id, OrderStatus status, DateTime? startedAt, DateTime? readyAt, CancellationToken ct)
+    {
+        await ExecuteUpdateStatusAsync(id, status, startedAt, readyAt, ct);
+    }
+
+    // --- LÓGICA PRIVADA (Para no repetir código) ---
+    private async Task ExecuteUpdateStatusAsync(string id, OrderStatus status, DateTime? startedAt, DateTime? readyAt, CancellationToken ct)
     {
         var filter = Builders<Order>.Filter.Eq("_id", new ObjectId(id));
-
         var update = Builders<Order>.Update.Set(o => o.Status, status);
-
         var now = DateTime.UtcNow;
 
-        //NUEVA LÓGICA DE TIEMPOS
         switch (status)
         {
             case OrderStatus.Preparing:
-                // Inicio de cocina
-                update = update.Set(o => o.StartedAt, now);
+                update = update.Set(o => o.StartedAt, startedAt ?? now);
                 break;
 
             case OrderStatus.Ready:
-                // Pedido listo
-                update = update.Set(o => o.ReadyAt, now);
+                update = update.Set(o => o.ReadyAt, readyAt ?? now);
                 break;
 
             case OrderStatus.Delivered:
-                // Pedido entregado
                 update = update.Set(o => o.DeliveredAt, now);
                 break;
         }
@@ -57,39 +69,26 @@ public class OrderRepository : GenericRepository<Order>, IOrderRepository
         await _collection.UpdateOneAsync(filter, update, cancellationToken: ct);
     }
 
-    /// <summary>
-    /// Obtiene órdenes activas (para cocina).
-    /// Solo Pending y Preparing.
-    /// </summary>
+    // --- OTROS MÉTODOS ---
+
     public async Task<List<Order>> GetActiveOrdersAsync(CancellationToken ct = default)
     {
         var filter = Builders<Order>.Filter.In(o => o.Status, new[]
         {
             OrderStatus.Pending,
-            OrderStatus.Preparing
+            OrderStatus.Preparing,
+            OrderStatus.Ready
         });
 
-        return await _collection
-            .Find(filter)
-            .SortBy(o => o.CreatedAt) // FIFO
-            .ToListAsync(ct);
+        return await _collection.Find(filter).SortBy(o => o.CreatedAt).ToListAsync(ct);
     }
 
-   
-    /// <summary>
-    /// Órdenes listas para recoger por el mesero.
-    /// </summary>
     public async Task<List<Order>> GetReadyOrdersAsync(CancellationToken ct = default)
     {
         var filter = Builders<Order>.Filter.Eq(o => o.Status, OrderStatus.Ready);
-
-        return await _collection
-            .Find(filter)
-            .SortBy(o => o.ReadyAt)
-            .ToListAsync(ct);
+        return await _collection.Find(filter).SortBy(o => o.ReadyAt).ToListAsync(ct);
     }
 
-    //(historial)
     public async Task<List<Order>> GetHistoryAsync(CancellationToken ct = default)
     {
         var filter = Builders<Order>.Filter.In(o => o.Status, new[]
@@ -98,9 +97,6 @@ public class OrderRepository : GenericRepository<Order>, IOrderRepository
             OrderStatus.Cancelled
         });
 
-        return await _collection
-            .Find(filter)
-            .SortByDescending(o => o.DeliveredAt)
-            .ToListAsync(ct);
+        return await _collection.Find(filter).SortByDescending(o => o.DeliveredAt).ToListAsync(ct);
     }
 }

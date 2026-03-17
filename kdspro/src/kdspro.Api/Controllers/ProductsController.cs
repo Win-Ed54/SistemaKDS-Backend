@@ -1,6 +1,11 @@
 using kdspro.Domain.Entities;
 using kdspro.Domain.Interfaces;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
+using kdspro.Api.Hubs;
+using Microsoft.AspNetCore.Authorization;
+using kdspro.Application.DTOs;
+
 
 namespace kdspro.Api.Controllers;
 
@@ -13,10 +18,12 @@ namespace kdspro.Api.Controllers;
 public class ProductsController : ControllerBase
 {
     private readonly IProductRepository _productRepository;
+    private readonly IHubContext<OrdersHub> _hub;
 
-    public ProductsController(IProductRepository productRepository)
+    public ProductsController(IProductRepository productRepository, IHubContext<OrdersHub> hub)
     {
         _productRepository = productRepository;
+        _hub = hub;
     }
 
     /// <summary>
@@ -97,4 +104,23 @@ public class ProductsController : ControllerBase
         await _productRepository.DeleteAsync(id);
         return NoContent();
     }
+
+    [Authorize(Roles = "admin")]
+    [HttpPatch("{id}/stock")]
+    public async Task<IActionResult> UpdateStock(string id, [FromBody] StockUpdateDto dto)
+    {
+        var existing = await _productRepository.GetByIdAsync(id);
+        if (existing == null) return NotFound();
+
+        // Actualizamos en la Base de Datos
+        await _productRepository.UpdateStockAsync(id, dto.NewStock);
+
+        // NOTIFICACIÓN EN TIEMPO REAL:
+        // Esto hace que el Admin y el Mesero se actualicen sin F5
+        await _hub.Clients.All.SendAsync("stockupdated", id, dto.NewStock);
+
+        return Ok(new { id, newStock = dto.NewStock });
+    }
 }
+
+

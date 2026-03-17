@@ -98,4 +98,23 @@ public class ProductRepository : IProductRepository
     // Retorna true si se logró modificar el documento (había stock suficiente)
     return result.ModifiedCount > 0;
     }
+
+    /// <summary>
+    /// MÓDULO ADMIN: Actualización manual de inventario.
+    /// Permite al administrador recargar stock (+10, +50, etc.).
+    /// </summary>
+    /// <param name="id">ID del producto.</param>
+    /// <param name="newStock">El nuevo valor total de stock.</param>
+    public async Task UpdateStockAsync(string id, int newStock)
+    {
+        var filter = Builders<Product>.Filter.Eq(p => p.Id, id);
+
+        // Al actualizar el stock, también nos aseguramos de que 'IsAvailable' 
+        // sea true si el nuevo stock es mayor a cero.
+        var update = Builders<Product>.Update
+            .Set(p => p.Stock, newStock)
+            .Set(p => p.IsAvailable, newStock > 0);
+
+        await _context.Products.UpdateOneAsync(filter, update);
+    }
 }

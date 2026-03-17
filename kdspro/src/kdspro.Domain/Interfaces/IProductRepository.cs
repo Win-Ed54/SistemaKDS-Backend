@@ -45,4 +45,6 @@ public interface IProductRepository
 
     Task<bool> DeductStockAsync(string id, int quantity);
 
+    Task UpdateStockAsync(string id, int newStock);
+
 }

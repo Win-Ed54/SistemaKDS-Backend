@@ -3,7 +3,6 @@ using kdspro.Application.Interfaces;
 using kdspro.Domain.Entities;
 using kdspro.Domain.Enums;
 using kdspro.Domain.Interfaces;
-using Microsoft.AspNetCore.SignalR;
 using MongoDB.Driver;
 
 namespace kdspro.Application.Services;
@@ -23,39 +22,26 @@ public class OrderService : IOrderService
         _notificationService = notificationService; 
     }
 
-    // Crear nueva orden
-        // Crear nueva orden
     public async Task<OrderDto> CreateOrder(CreateOrderDto dto)
     {
-        // --- NUEVO: Diccionario para capturar el stock real tras la resta ---
         var updatedStocks = new Dictionary<string, int>();
 
-        // 1. VALIDACIÓN Y DESCUENTO DE STOCK (Bucle solo para stock)
+        // 1. VALIDACIÓN Y DESCUENTO DE STOCK
         foreach (var item in dto.Items)
         {
-            // Usamos el método atómico del repositorio que ya definimos
             bool success = await _productRepository.DeductStockAsync(item.ProductId, item.Quantity);
+            if (!success) throw new Exception($"Stock insuficiente para: {item.ProductName}");
 
-            if (!success)
-            {
-                throw new Exception($"Stock insuficiente para: {item.ProductName}");
-            }
-
-            // Notificación si se agotó
             var updatedProduct = await _productRepository.GetByIdAsync(item.ProductId);
             if (updatedProduct != null)
             {
-                // --- NUEVO: Guardamos el stock actual en nuestro diccionario ---
                 updatedStocks[item.ProductId] = updatedProduct.Stock;
-
                 if (updatedProduct.Stock <= 0)
-                {
                     await _notificationService.NotifyProductOutOfStock(item.ProductId);
-                }
             }
         }
 
-        // 2. CREACIÓN DE LA ORDEN (Fuera del bucle - Tu lógica original)
+        // 2. CREACIÓN DE LA ORDEN
         var order = new Order
         {
             TableNumber = dto.TableNumber,
@@ -63,6 +49,9 @@ public class OrderService : IOrderService
             WaiterName = dto.WaiterName,
             Status = OrderStatus.Pending,
             CreatedAt = DateTime.UtcNow,
+            // IMPORTANTE: Inicializamos tiempos en null
+            StartedAt = null,
+            ReadyAt = null,
             Items = dto.Items.Select(i => new OrderItem
             {
                 ProductId = i.ProductId,
@@ -73,103 +62,106 @@ public class OrderService : IOrderService
         };
 
         await _orderRepository.CreateAsync(order);
-
-        // 3. NOTIFICAR NUEVA ORDEN A COCINA
+        
+        // 3. NOTIFICAR A COCINA Y ADMIN (Para actualización automática sin F5)
         await _notificationService.NotifyNewOrder(order);
 
-        // --- NUEVO: Mapeamos a DTO y le inyectamos los valores de stock capturados ---
         var resultDto = MapToDto(order);
-
         foreach (var itemDto in resultDto.Items)
         {
             if (updatedStocks.TryGetValue(itemDto.ProductId, out int currentStock))
-            {
                 itemDto.CurrentStock = currentStock;
-            }
         }
 
         return resultDto;
     }
-    // Obtener orden por ID
-    public async Task<OrderDto?> GetOrderById(string id)
-    {
-        var order = await _orderRepository.GetByIdAsync(id);
 
-        if (order == null)
-            return null;
+    // --- ACTUALIZACIÓN DE ESTADOS CON REGISTRO DE TIEMPOS (FIX EFICIENCIA) ---
 
-        return MapToDto(order);
-    }
-
-    // Obtener órdenes activas
-    public async Task<List<OrderDto>> GetActiveOrders()
-    {
-        var orders = await _orderRepository.GetActiveOrdersAsync();
-
-        return orders.Select(MapToDto).ToList();
-    }
-
-    // Obtener órdenes listas
-    public async Task<List<OrderDto>> GetReadyOrders()
-    {
-        var orders = await _orderRepository.GetReadyOrdersAsync();
-
-        return orders.Select(MapToDto).ToList();
-    }
-
-    // Obtener historial
-    public async Task<List<OrderDto>> GetHistory()
-    {
-        var orders = await _orderRepository.GetHistoryAsync();
-
-        return orders.Select(MapToDto).ToList();
-    }
-
-    // Cambiar estado a Preparing
     public async Task SetPreparing(string orderId)
     {
-        await _orderRepository.UpdateStatusAsync(orderId, OrderStatus.Preparing);
+        // Guardamos la hora de inicio para el cálculo de eficiencia
+        var startTime = DateTime.UtcNow;
+        await _orderRepository.UpdateStatusWithTimeAsync(orderId, OrderStatus.Preparing, startTime, null); 
+        
+        // Notificar al Admin para que vea el cambio de color y registre el tiempo de inicio
+        var order = await GetOrderById(orderId);
+        if(order != null) await _notificationService.NotifyOrderPreparing(order);
     }
 
-    // Cambiar estado a Ready
     public async Task SetReady(string orderId)
     {
-        await _orderRepository.UpdateStatusAsync(orderId, OrderStatus.Ready);
+        // Guardamos la hora de finalización
+        var readyTime = DateTime.UtcNow;
+        await _orderRepository.UpdateStatusWithTimeAsync(orderId, OrderStatus.Ready, null, readyTime);
+        
+        // Notificar al Admin para que calcule el TIEMPO PROMEDIO (ReadyAt - StartedAt)
+        var order = await GetOrderById(orderId);
+        if(order != null) await _notificationService.NotifyOrderReady(order);
     }
 
-    // Cambiar estado a Finished
     public async Task SetFinished(string orderId)
     {
         await _orderRepository.UpdateStatusAsync(orderId, OrderStatus.Delivered);
+        
+        // Notificar al Admin para liberar la mesa en el Dashboard
+        await _notificationService.NotifyOrderDelivered(orderId);
     }
 
-    // Cancelar orden
     public async Task CancelOrder(string orderId)
     {
         await _orderRepository.UpdateStatusAsync(orderId, OrderStatus.Cancelled);
+        await _notificationService.NotifyOrderCancelled(orderId);
     }
 
-    // Mapper interno
-   private static OrderDto MapToDto(Order order)
-{
-    return new OrderDto
+    // --- MAPPER CON TIEMPOS ---
+    private static OrderDto MapToDto(Order order)
     {
-        Id = order.Id!,
-        TableNumber = order.TableNumber,
-        CustomerName = order.CustomerName,
-        WaiterName = order.WaiterName,
-        Status = order.Status,
-        CreatedAt = order.CreatedAt,
-
-        Items = order.Items?.Select(i => new OrderItemDto
+        return new OrderDto
         {
-            ProductId = i.ProductId,
-            ProductName = i.ProductName,
-            Quantity = i.Quantity,
-            Notes = i.Notes,
-            Modifiers = i.Modifiers
-        }).ToList() ?? new List<OrderItemDto>()
-    };
-}
+            Id = order.Id!,
+            TableNumber = order.TableNumber,
+            CustomerName = order.CustomerName,
+            WaiterName = order.WaiterName,
+            Status = order.Status,
+            CreatedAt = order.CreatedAt,
+            
+            // ESTOS CAMPOS SON LOS QUE HACEN QUE EL DASHBOARD NO MARQUE 0 MIN
+            StartedAt = order.StartedAt, 
+            ReadyAt = order.ReadyAt,     
 
+            Items = order.Items?.Select(i => new OrderItemDto
+            {
+                ProductId = i.ProductId,
+                ProductName = i.ProductName,
+                Quantity = i.Quantity,
+                Notes = i.Notes,
+                CurrentStock = 0 // Se llena en el CreateOrder si es necesario
+            }).ToList() ?? new List<OrderItemDto>()
+        };
+    }
+
+    public async Task<OrderDto?> GetOrderById(string id)
+    {
+        var order = await _orderRepository.GetByIdAsync(id);
+        return order != null ? MapToDto(order) : null;
+    }
+
+    public async Task<List<OrderDto>> GetActiveOrders()
+    {
+        var orders = await _orderRepository.GetActiveOrdersAsync();
+        return orders.Select(MapToDto).ToList();
+    }
+
+    public async Task<List<OrderDto>> GetReadyOrders()
+    {
+        var orders = await _orderRepository.GetReadyOrdersAsync();
+        return orders.Select(MapToDto).ToList();
+    }
+
+    public async Task<List<OrderDto>> GetHistory()
+    {
+        var orders = await _orderRepository.GetHistoryAsync();
+        return orders.Select(MapToDto).ToList();
+    }
 }
