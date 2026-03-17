@@ -62,9 +62,9 @@ public static class DbSeeder
 
         await users.InsertManyAsync(new List<User>
         {
-           new() { Username = "admin", PasswordHash = BCrypt.Net.BCrypt.HashPassword("admin123"), Role = "admin" },
-           new() { Username = "kitchen", PasswordHash = BCrypt.Net.BCrypt.HashPassword("kitchen123"), Role = "kitchen" },
-           new() { Username = "waiter", PasswordHash = BCrypt.Net.BCrypt.HashPassword("waiter123"), Role = "waiter" }
+           new() { Username = "admin", PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin_KDS_2026!"), Role = "admin" },
+           new() { Username = "kitchen", PasswordHash = BCrypt.Net.BCrypt.HashPassword("2026"), Role = "kitchen" },
+           new() { Username = "waiter", PasswordHash = BCrypt.Net.BCrypt.HashPassword("2027"), Role = "waiter" }
         }); 
     }
 }
