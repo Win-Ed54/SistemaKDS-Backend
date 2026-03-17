@@ -8,6 +8,7 @@
 *.user
 *.userosscache
 *.sln.docstates
+.env
 
 # --- Archivos de Configuración de la App (Secretos) ---
 # Se recomienda no subir el appsettings con contraseñas reales
