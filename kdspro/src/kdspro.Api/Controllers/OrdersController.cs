@@ -31,7 +31,7 @@ public class OrdersController : ControllerBase
 
             // 1. NOTIFICAR A COCINA Y ADMIN (Nueva orden entra al sistema)
             await _hub.Clients.Group("kitchen").SendAsync("receiveorder", order);
-            await _hub.Clients.Group("admin").SendAsync("receiveorder", order);
+            await _hub.Clients.Group("admin").SendAsync("ordercreated", order);
 
             // 2. ACTUALIZAR STOCK EN TIEMPO REAL PARA MESEROS
             foreach (var item in order.Items)
@@ -58,8 +58,8 @@ public class OrdersController : ControllerBase
         if (order == null) return NotFound();
 
         // NOTIFICAR: Cocina mueve tarjeta, Admin cambia estado a "Cocinando"
-        await _hub.Clients.Group("kitchen").SendAsync("OrderPreparing", order);
-        await _hub.Clients.Group("admin").SendAsync("OrderPreparing", order);
+        await _hub.Clients.Group("kitchen").SendAsync("orderpreparing", order);
+        await _hub.Clients.Group("admin").SendAsync("orderpreparing", order);
 
         return Ok(order);
     }
@@ -74,7 +74,7 @@ public class OrdersController : ControllerBase
         if (order == null) return NotFound();
 
         // NOTIFICAR A TODOS: Mesero recibe alerta, Admin calcula EFICIENCIA (ReadyAt - StartedAt)
-        await _hub.Clients.All.SendAsync("OrderReady", order);
+        await _hub.Clients.All.SendAsync("orderready", order);
 
         return Ok(order);
     }
@@ -86,7 +86,7 @@ public class OrdersController : ControllerBase
         await _orderService.SetFinished(id);
 
         // NOTIFICAR: Limpia KDS y libera "CAPACIDAD DE SALÓN" en Admin
-        await _hub.Clients.All.SendAsync("OrderDelivered", id);
+        await _hub.Clients.All.SendAsync("orderdelivered", id);
         await _hub.Clients.Group("admin").SendAsync("tablesupdated");
 
         return Ok(new { id, message = "Orden entregada con éxito" });
@@ -99,7 +99,7 @@ public class OrdersController : ControllerBase
         await _orderService.CancelOrder(id);
 
         // NOTIFICAR: Elimina de todas las pantallas y libera mesa
-        await _hub.Clients.All.SendAsync("OrderCancelled", id);
+        await _hub.Clients.All.SendAsync("ordercancelled", id);
         await _hub.Clients.Group("admin").SendAsync("tablesupdated");
 
         return NoContent();
