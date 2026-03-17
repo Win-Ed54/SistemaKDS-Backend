@@ -33,7 +33,8 @@ public class OrdersController : ControllerBase
 
         await _hub.Clients.Group("kitchen")
             .SendAsync("ReceiveOrder", order);
-
+            await _hub.Clients.Group("admin")
+            .SendAsync("ordercreated", order);
         return Ok(order);
     }
 
@@ -79,6 +80,8 @@ public class OrdersController : ControllerBase
         await _hub.Clients.Group("kitchen")
             .SendAsync("OrderPreparing", order);
 
+            await _hub.Clients.Group("admin").SendAsync("orderupdated", order);
+
         return Ok(order);
     }
 
@@ -96,6 +99,8 @@ public class OrdersController : ControllerBase
 
         await _hub.Clients.All
             .SendAsync("OrderReady", order);
+
+             await _hub.Clients.Group("admin").SendAsync("orderupdated" , order);
 
         return Ok(order);
     }
