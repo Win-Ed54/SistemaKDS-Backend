@@ -8,6 +8,7 @@ public class OrdersHub : Hub
 {
     private const string KitchenGroup = "kitchen";
     private const string WaiterGroup = "waiter";
+     private const string AdminGroup = "admin";
 
     // Unirse al grupo de cocina
     public async Task JoinKitchenGroup()
@@ -19,6 +20,12 @@ public class OrdersHub : Hub
     public async Task JoinWaiterGroup()
     {
         await Groups.AddToGroupAsync(Context.ConnectionId, WaiterGroup);
+    }
+
+    // Unirse al grupo de administradores
+     public async Task JoinAdminGroup()
+    {
+        await Groups.AddToGroupAsync(Context.ConnectionId, AdminGroup);
     }
 
     // Cuando un cliente se conecta
