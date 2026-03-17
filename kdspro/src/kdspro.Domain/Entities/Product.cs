@@ -35,10 +35,16 @@ public class Product
     public string Description { get; set; } = string.Empty;
     
     /// <summary>
-    /// Estado de stock crítico (Requisito Mes 1). 
-    /// Si es 'false', el mesero no podrá agregarlo a nuevas órdenes.
+    /// Cantidad física disponible en inventario (Nuevo para Stock Automático).
     /// </summary>
-    public bool IsAvailable { get; set; } = true;
+    public int Stock { get; set; } = 0;
+
+    /// <summary>
+      /// El producto está disponible solo si el Stock es mayor a cero.
+    /// Se marca como ignore para que MongoDB no intente guardarlo, ya que es calculado.
+    /// </summary>
+    [BsonIgnore]
+    public bool IsAvailable => Stock > 0;
     
     /// <summary>
     /// Categoría para organizar el menú (Ej: "Hamburguesas", "Bebidas", "Postres").

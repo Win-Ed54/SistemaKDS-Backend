@@ -5,6 +5,7 @@ using kdspro.Api.Hubs;
 using kdspro.Application.Services;
 using kdspro.Application.Interfaces;
 using MongoDB.Driver;
+using kdspro.Api.Services;
 
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -135,6 +136,7 @@ builder.Services.AddScoped<ITableRepository, TableRepository>();
 builder.Services.AddScoped<IOrderService, OrderService>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<IOrderNotificationService, OrderNotificationService>();
 
 
 

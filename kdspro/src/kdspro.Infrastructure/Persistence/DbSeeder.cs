@@ -3,72 +3,54 @@ using MongoDB.Driver;
 
 namespace kdspro.Infrastructure.Persistence;
 
-/// <summary>
-/// Clase de utilidad para la carga de datos iniciales (Data Seeding) en MongoDB.
-/// Garantiza que el sistema KDS cuente con un menú base funcional desde el primer despliegue.
-/// </summary>
 public static class DbSeeder
 {
-    /// <summary>
-    /// Pobla la colección de productos con el catálogo oficial de Wendy's si esta se encuentra vacía.
-    /// Crucial para demostraciones, pruebas de desarrollo y validación de tipos de datos.
-    /// </summary>
-    /// <param name="collection">La colección de MongoDB donde se insertarán los documentos.</param>
-    /// <returns>Tarea asincrónica que representa la operación de inserción masiva.</returns>
     public static async Task SeedProducts(IMongoCollection<Product> collection)
     {
-        // 1. VERIFICACIÓN DE SEGURIDAD: Solo sembramos si la base de datos está totalmente vacía
-        // Esto evita duplicar el menú cada vez que se reinicia el servidor.
         if (await collection.CountDocumentsAsync(_ => true) > 0) return;
 
-        // 2. CATÁLOGO DIGITAL DE WENDY'S: 20 productos organizados por categorías
-        // Se utilizan sufijos 'm' para asegurar que los precios se traten como decimales de alta precisión.
         var wendysMenu = new List<Product>
         {
-            new() { Name = "Dave's Single", Description = "Cuarto de libra de carne fresca con queso", Price = 5.99m, Category = "Hamburguesas", IsAvailable = true },
-            new() { Name = "Dave's Double", Description = "Media libra de carne fresca con queso", Price = 7.49m, Category = "Hamburguesas", IsAvailable = true },
-            new() { Name = "Baconator", Description = "Doble carne, doble queso y mucho tocino", Price = 8.99m, Category = "Hamburguesas", IsAvailable = true },
-            new() { Name = "Son of Baconator", Description = "Versión junior del clásico Baconator", Price = 6.25m, Category = "Hamburguesas", IsAvailable = true },
-            new() { Name = "Spicy Chicken Sandwich", Description = "Pechuga de pollo picante empanizada", Price = 5.49m, Category = "Pollo", IsAvailable = true },
-            new() { Name = "Classic Chicken Sandwich", Description = "Pechuga de pollo clásica empanizada", Price = 5.19m, Category = "Pollo", IsAvailable = true },
-            new() { Name = "10 PC. Spicy Nuggets", Description = "Nuggets de pollo picantes", Price = 4.99m, Category = "Pollo", IsAvailable = true },
-            new() { Name = "10 PC. Crispy Nuggets", Description = "Nuggets de pollo crujientes", Price = 4.99m, Category = "Pollo", IsAvailable = true },
-            new() { Name = "Natural-Cut Fries (L)", Description = "Papas fritas con sal de mar", Price = 3.25m, Category = "Acompañamientos", IsAvailable = true },
-            new() { Name = "Baconator Fries", Description = "Papas con queso derretido y tocino", Price = 4.50m, Category = "Acompañamientos", IsAvailable = true },
-            new() { Name = "Chili Cheese Fries", Description = "Papas con chili y queso", Price = 4.25m, Category = "Acompañamientos", IsAvailable = true },
-            new() { Name = "Classic Chili (L)", Description = "El famoso chili de Wendy's", Price = 3.99m, Category = "Acompañamientos", IsAvailable = true },
-            new() { Name = "Baked Potato w/ Cheese", Description = "Papa horneada con queso", Price = 3.50m, Category = "Acompañamientos", IsAvailable = true },
-            new() { Name = "Chocolate Frosty (L)", Description = "Postre lácteo congelado sabor chocolate", Price = 2.99m, Category = "Postres", IsAvailable = true },
-            new() { Name = "Vanilla Frosty (L)", Description = "Postre lácteo congelado sabor vainilla", Price = 2.99m, Category = "Postres", IsAvailable = true },
-            new() { Name = "Coca-Cola (L)", Description = "Bebida carbonatada grande", Price = 2.50m, Category = "Bebidas", IsAvailable = true },
-            new() { Name = "Lemonade (L)", Description = "Limonada fresca natural", Price = 2.75m, Category = "Bebidas", IsAvailable = true },
-            new() { Name = "Iced Tea (L)", Description = "Té frío sin azúcar", Price = 2.25m, Category = "Bebidas", IsAvailable = true },
-            new() { Name = "Cold Brew Coffee", Description = "Café frío artesanal", Price = 3.50m, Category = "Bebidas", IsAvailable = true },
-            new() { Name = "Apple Pecan Salad", Description = "Ensalada fresca con manzana y nueces", Price = 7.99m, Category = "Ensaladas", IsAvailable = true }
+            // Se elimina 'IsAvailable = true' y se agrega 'Stock = 50'
+            // La propiedad IsAvailable se calculará automáticamente como true mientras Stock > 0
+            new() { Name = "Dave's Single", Description = "Cuarto de libra de carne fresca con queso", Price = 5.99m, Category = "Hamburguesas", Stock = 2 },
+            new() { Name = "Dave's Double", Description = "Media libra de carne fresca con queso", Price = 7.49m, Category = "Hamburguesas", Stock = 50 },
+            new() { Name = "Baconator", Description = "Doble carne, doble queso y mucho tocino", Price = 8.99m, Category = "Hamburguesas", Stock = 50 },
+            new() { Name = "Son of Baconator", Description = "Versión junior del clásico Baconator", Price = 6.25m, Category = "Hamburguesas", Stock = 50 },
+            new() { Name = "Spicy Chicken Sandwich", Description = "Pechuga de pollo picante empanizada", Price = 5.49m, Category = "Pollo", Stock = 50 },
+            new() { Name = "Classic Chicken Sandwich", Description = "Pechuga de pollo clásica empanizada", Price = 5.19m, Category = "Pollo", Stock = 50 },
+            new() { Name = "10 PC. Spicy Nuggets", Description = "Nuggets de pollo picantes", Price = 4.99m, Category = "Pollo", Stock = 50 },
+            new() { Name = "10 PC. Crispy Nuggets", Description = "Nuggets de pollo crujientes", Price = 4.99m, Category = "Pollo", Stock = 50 },
+            new() { Name = "Natural-Cut Fries (L)", Description = "Papas fritas con sal de mar", Price = 3.25m, Category = "Acompañamientos", Stock = 100 },
+            new() { Name = "Baconator Fries", Description = "Papas con queso derretido y tocino", Price = 4.50m, Category = "Acompañamientos", Stock = 100 },
+            new() { Name = "Chili Cheese Fries", Description = "Papas con chili y queso", Price = 4.25m, Category = "Acompañamientos", Stock = 100 },
+            new() { Name = "Classic Chili (L)", Description = "El famoso chili de Wendy's", Price = 3.99m, Category = "Acompañamientos", Stock = 100 },
+            new() { Name = "Baked Potato w/ Cheese", Description = "Papa horneada con queso", Price = 3.50m, Category = "Acompañamientos", Stock = 100 },
+            new() { Name = "Chocolate Frosty (L)", Description = "Postre lácteo congelado sabor chocolate", Price = 2.99m, Category = "Postres", Stock = 200 },
+            new() { Name = "Vanilla Frosty (L)", Description = "Postre lácteo congelado sabor vainilla", Price = 2.99m, Category = "Postres", Stock = 200 },
+            new() { Name = "Coca-Cola (L)", Description = "Bebida carbonatada grande", Price = 2.50m, Category = "Bebidas", Stock = 500 },
+            new() { Name = "Lemonade (L)", Description = "Limonada fresca natural", Price = 2.75m, Category = "Bebidas", Stock = 500 },
+            new() { Name = "Iced Tea (L)", Description = "Té frío sin azúcar", Price = 2.25m, Category = "Bebidas", Stock = 500 },
+            new() { Name = "Cold Brew Coffee", Description = "Café frío artesanal", Price = 3.50m, Category = "Bebidas", Stock = 500 },
+            new() { Name = "Apple Pecan Salad", Description = "Ensalada fresca con manzana y nueces", Price = 7.99m, Category = "Ensaladas", Stock = 30 }
         };
 
-        // 3. PERSISTENCIA MASIVA: Se insertan todos los productos en una sola operación de red
-        // Optimizamos el rendimiento del inicio de la aplicación.
         await collection.InsertManyAsync(wendysMenu);
     }
 
-    /// <summary>
-    /// Carga inicial de mesas del restaurante.
-    /// Solo se ejecuta si la colección está vacía.
-    /// </summary>
     public static async Task SeedTables(IMongoCollection<Table> collection)
     {
         if (await collection.CountDocumentsAsync(_ => true) > 0) return;
 
         var tables = new List<Table>
-    {
-        new() { Number = 1, Name = "Mesa 1", Capacity = 4, IsActive = true },
-        new() { Number = 2, Name = "Mesa 2", Capacity = 4, IsActive = true },
-        new() { Number = 3, Name = "Mesa 3", Capacity = 4, IsActive = true },
-        new() { Number = 4, Name = "Mesa 4", Capacity = 6, IsActive = true },
-        new() { Number = 5, Name = "Mesa 5", Capacity = 2, IsActive = true },
-        new() { Number = 6, Name = "Mesa 6", Capacity = 8, IsActive = true }
-    };
+        {
+            new() { Number = 1, Name = "Mesa 1", Capacity = 4, IsActive = true },
+            new() { Number = 2, Name = "Mesa 2", Capacity = 4, IsActive = true },
+            new() { Number = 3, Name = "Mesa 3", Capacity = 4, IsActive = true },
+            new() { Number = 4, Name = "Mesa 4", Capacity = 6, IsActive = true },
+            new() { Number = 5, Name = "Mesa 5", Capacity = 2, IsActive = true },
+            new() { Number = 6, Name = "Mesa 6", Capacity = 8, IsActive = true }
+        };
 
         await collection.InsertManyAsync(tables);
     }
@@ -76,37 +58,13 @@ public static class DbSeeder
     public static async Task SeedUsers(IMongoCollection<User> users)
     {
         var count = await users.CountDocumentsAsync(_ => true);
-
-        if(count > 0)
-         return;
-
-        var admin = new User
-        {
-          Username = "admin",
-          PasswordHash = BCrypt.Net.BCrypt.HashPassword("admin123"),
-          Role = "admin"  
-        }; 
-
-        var kitchen = new User
-        {
-          Username = "kitchen",
-          PasswordHash = BCrypt.Net.BCrypt.HashPassword("kitchen123"),
-          Role = "kitchen"  
-        };
-
-        var waiter = new User
-        {
-          Username = "waiter",
-          PasswordHash = BCrypt.Net.BCrypt.HashPassword("waiter123"),
-          Role = "waiter"  
-        }; 
+        if(count > 0) return;
 
         await users.InsertManyAsync(new List<User>
         {
-           admin,
-           kitchen,
-           waiter
+           new() { Username = "admin", PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin_KDS_2026!"), Role = "admin" },
+           new() { Username = "kitchen", PasswordHash = BCrypt.Net.BCrypt.HashPassword("2026"), Role = "kitchen" },
+           new() { Username = "waiter", PasswordHash = BCrypt.Net.BCrypt.HashPassword("2027"), Role = "waiter" }
         }); 
     }
-
 }

@@ -3,21 +3,59 @@ using kdspro.Application.Interfaces;
 using kdspro.Domain.Entities;
 using kdspro.Domain.Enums;
 using kdspro.Domain.Interfaces;
+using Microsoft.AspNetCore.SignalR;
+using MongoDB.Driver;
 
 namespace kdspro.Application.Services;
 
 public class OrderService : IOrderService
 {
     private readonly IOrderRepository _orderRepository;
+    private readonly IProductRepository _productRepository;
+    private readonly IOrderNotificationService _notificationService;
 
-    public OrderService(IOrderRepository orderRepository)
+    public OrderService(IOrderRepository orderRepository,
+    IProductRepository productRepository,
+    IOrderNotificationService notificationService)
     {
         _orderRepository = orderRepository;
+        _productRepository = productRepository;
+        _notificationService = notificationService; 
     }
 
     // Crear nueva orden
+        // Crear nueva orden
     public async Task<OrderDto> CreateOrder(CreateOrderDto dto)
     {
+        // --- NUEVO: Diccionario para capturar el stock real tras la resta ---
+        var updatedStocks = new Dictionary<string, int>();
+
+        // 1. VALIDACIÓN Y DESCUENTO DE STOCK (Bucle solo para stock)
+        foreach (var item in dto.Items)
+        {
+            // Usamos el método atómico del repositorio que ya definimos
+            bool success = await _productRepository.DeductStockAsync(item.ProductId, item.Quantity);
+
+            if (!success)
+            {
+                throw new Exception($"Stock insuficiente para: {item.ProductName}");
+            }
+
+            // Notificación si se agotó
+            var updatedProduct = await _productRepository.GetByIdAsync(item.ProductId);
+            if (updatedProduct != null)
+            {
+                // --- NUEVO: Guardamos el stock actual en nuestro diccionario ---
+                updatedStocks[item.ProductId] = updatedProduct.Stock;
+
+                if (updatedProduct.Stock <= 0)
+                {
+                    await _notificationService.NotifyProductOutOfStock(item.ProductId);
+                }
+            }
+        }
+
+        // 2. CREACIÓN DE LA ORDEN (Fuera del bucle - Tu lógica original)
         var order = new Order
         {
             TableNumber = dto.TableNumber,
@@ -25,22 +63,33 @@ public class OrderService : IOrderService
             WaiterName = dto.WaiterName,
             Status = OrderStatus.Pending,
             CreatedAt = DateTime.UtcNow,
-
             Items = dto.Items.Select(i => new OrderItem
             {
                 ProductId = i.ProductId,
                 ProductName = i.ProductName,
                 Quantity = i.Quantity,
-                Modifiers = i.Modifiers ?? new List<string>(),
                 Notes = i.Notes ?? ""
             }).ToList()
         };
 
         await _orderRepository.CreateAsync(order);
 
-        return MapToDto(order);
-    }
+        // 3. NOTIFICAR NUEVA ORDEN A COCINA
+        await _notificationService.NotifyNewOrder(order);
 
+        // --- NUEVO: Mapeamos a DTO y le inyectamos los valores de stock capturados ---
+        var resultDto = MapToDto(order);
+
+        foreach (var itemDto in resultDto.Items)
+        {
+            if (updatedStocks.TryGetValue(itemDto.ProductId, out int currentStock))
+            {
+                itemDto.CurrentStock = currentStock;
+            }
+        }
+
+        return resultDto;
+    }
     // Obtener orden por ID
     public async Task<OrderDto?> GetOrderById(string id)
     {

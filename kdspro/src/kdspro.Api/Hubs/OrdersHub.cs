@@ -48,4 +48,10 @@ public class OrdersHub : Hub
 
         await base.OnDisconnectedAsync(exception);
     }
+
+    public async Task UpdateStock(int productId, int newStock)
+    {
+        // Notifica a todos los meseros que el stock cambió
+        await Clients.Group("waiter").SendAsync("stockupdated", productId, newStock);
+    }
 }

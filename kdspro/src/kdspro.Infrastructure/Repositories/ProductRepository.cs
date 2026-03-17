@@ -76,4 +76,26 @@ public class ProductRepository : IProductRepository
     {
        await _context.Products.DeleteOneAsync(p => p.Id == id);
     }
+
+    ///<summary>
+    /// Manejo de concurrencia y Stock automatico.
+    /// Descuenta el stock de forma atomica. si no hay suficiente, la operacion falla. 
+    /// </summary>
+    public async Task<bool> DeductStockAsync(string id, int quantity)
+    {
+        // Filtro: Coincidir ID Y asegurar que el stock actual sea >= a la cantidad pedida
+    var filter = Builders<Product>.Filter.And(
+        Builders<Product>.Filter.Eq(p => p.Id, id),
+        Builders<Product>.Filter.Gte(p => p.Stock, quantity) 
+    );
+
+    // Operación: Restar la cantidad (usando valor negativo)
+    var update = Builders<Product>.Update.Inc(p => p.Stock, -quantity);
+
+    // UpdateOneAsync con este filtro es ATÓMICO en MongoDB
+    var result = await _context.Products.UpdateOneAsync(filter, update);
+
+    // Retorna true si se logró modificar el documento (había stock suficiente)
+    return result.ModifiedCount > 0;
+    }
 }

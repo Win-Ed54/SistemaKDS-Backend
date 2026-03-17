@@ -42,4 +42,7 @@ public interface IProductRepository
     /// Elimina un producto del catálogo (Uso administrativo).
     /// </summary>
     Task DeleteAsync(string id);
+
+    Task<bool> DeductStockAsync(string id, int quantity);
+
 }
