@@ -24,7 +24,17 @@ public class AuthService
 
         if (user == null)
             return (null, null);
-
+            
+        if(user.Role == "admin")
+        {
+            if (password.Length < 8) return (null, null);
+        }
+        else
+        {
+            if(!password.All(char.IsDigit) || password.Length < 4 || password.Length > 6)
+            return (null, null);
+        }
+        
         if (!BCrypt.Net.BCrypt.Verify(password, user.PasswordHash))
             return (null, null);
 
@@ -51,6 +61,7 @@ public class AuthService
 
         var claims = new[]
         {
+            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()), // ID Único
             new Claim(ClaimTypes.Name, user.Username),
             new Claim(ClaimTypes.Role, user.Role)
         };
@@ -59,7 +70,7 @@ public class AuthService
             issuer: _configuration["Jwt:Issuer"],
             audience: _configuration["Jwt:Audience"],
             claims: claims,
-            expires: DateTime.UtcNow.AddDays(30),
+            expires: DateTime.UtcNow.AddHours(12),//Sesion por 12 horas de turno
             signingCredentials: creds
         );
 
