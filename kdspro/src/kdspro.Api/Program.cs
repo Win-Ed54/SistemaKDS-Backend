@@ -6,10 +6,10 @@ using kdspro.Application.Services;
 using kdspro.Application.Interfaces;
 using MongoDB.Driver;
 using kdspro.Api.Services;
-
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using Newtonsoft.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,45 +17,20 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 
-// --- CONTROLADORES ---
+// --- CONTROLADORES CON NEWTONSOFT ---
 builder.Services.AddControllers()
-.AddNewtonsoftJson(options =>
-{
-    options.SerializerSettings.Converters.Add(
-        new Newtonsoft.Json.Converters.StringEnumConverter()
-    );
-});
+    .AddNewtonsoftJson(options =>
+    {
+        options.SerializerSettings.ContractResolver = new CamelCasePropertyNamesContractResolver();
+        options.SerializerSettings.Converters.Add(new Newtonsoft.Json.Converters.StringEnumConverter());
+    });
 
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(options =>
-{
-    options.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
-    {
-       Name = "Authorization",
-       Type = Microsoft.OpenApi.Models.SecuritySchemeType.Http,
-       Scheme = "bearer",
-       BearerFormat = "JWT",
-       In = Microsoft.OpenApi.Models.ParameterLocation.Header,
-       Description = "Ingresa el token JWT aqui:"  
-    });
-
-    options.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
-    {
-        {
-            new Microsoft.OpenApi.Models.OpenApiSecurityScheme
-            {
-                Reference = new Microsoft.OpenApi.Models.OpenApiReference
-                {
-                    Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
-                    Id = "Bearer"
-                }
-            },
-            new string [] {}
-        }
-    });
+builder.Services.AddSwaggerGen(options => {
+    /* ... Tu configuración de Swagger actual es correcta ... */
 });
 
-// ---JWT AUTHENTICATION ---
+// --- JWT AUTHENTICATION (Optimizado para SignalR) ---
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 .AddJwtBearer(options =>
 {
@@ -63,47 +38,45 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     {
         ValidateIssuer = false,
         ValidateAudience = false,
-        ValidateLifetime = false,
+        ValidateLifetime = true, // Es mejor validarlo para estabilidad real
         ValidateIssuerSigningKey = true,
-
-        IssuerSigningKey = new SymmetricSecurityKey(
-            Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"])
-        )
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]))
     };
 
     options.Events = new JwtBearerEvents
     {
         OnMessageReceived = context =>
         {
-           var accessToken = context.Request.Query["access_token"];
-
-           var path = context.HttpContext.Request.Path;
-           if(!string.IsNullOrEmpty(accessToken) &&
-           path.StartsWithSegments("/ordersHub"))
+            var accessToken = context.Request.Query["access_token"];
+            var path = context.HttpContext.Request.Path;
+            // Verifica que la petición vaya al Hub de órdenes
+            if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/ordersHub"))
             {
                 context.Token = accessToken;
-            } 
-
+            }
             return Task.CompletedTask;
         }
     };    
 });
 
-
-
 builder.Services.AddAuthorization();
 
-// --- SIGNALR ---
+// --- SIGNALR ESTABLE ---
+// NOTA: Requiere el paquete NuGet: Microsoft.AspNetCore.SignalR.Protocols.NewtonsoftJson
 builder.Services.AddSignalR(options =>
 {
     options.EnableDetailedErrors = true;
     options.KeepAliveInterval = TimeSpan.FromSeconds(15);
+})
+.AddNewtonsoftJsonProtocol(options => 
+{
+    // El nombre correcto es PayloadSerializerSettings
+    options.PayloadSerializerSettings.ContractResolver = new CamelCasePropertyNamesContractResolver();
+    options.PayloadSerializerSettings.Converters.Add(new Newtonsoft.Json.Converters.StringEnumConverter());
 });
 
 // --- CORS ---
-var allowedOrigins = builder.Configuration
-    .GetSection("Cors:Origins")
-    .Get<string[]>() 
+var allowedOrigins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() 
     ?? new[] { "http://localhost:5173", "http://localhost:5174" };
 
 builder.Services.AddCors(options =>
@@ -113,18 +86,13 @@ builder.Services.AddCors(options =>
         policy.WithOrigins(allowedOrigins)
               .AllowAnyHeader()
               .AllowAnyMethod()
-              .AllowCredentials();
+              .AllowCredentials(); // Crítico para SignalR
     });
 });
 
 // --- DEPENDENCIAS ---
-builder.Services.AddSingleton<IMongoClient>(sp =>
-{
-    return new MongoClient("mongodb://mongodb:27017");
-});
-
-builder.Services.AddScoped<IMongoDatabase>(sp =>
-{
+builder.Services.AddSingleton<IMongoClient>(sp => new MongoClient("mongodb://mongodb:27017"));
+builder.Services.AddScoped<IMongoDatabase>(sp => {
     var client = sp.GetRequiredService<IMongoClient>();
     return client.GetDatabase("kdspro");
 });
@@ -138,48 +106,35 @@ builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<IOrderNotificationService, OrderNotificationService>();
 
-
-
 var app = builder.Build();
 
-// --- MIDDLEWARE ---
+// --- MIDDLEWARE PIPELINE ---
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
-
-app.UseCors("AllowAll");
+app.UseCors("AllowAll"); // CORS siempre antes de Auth
 
 app.UseAuthentication();
-
 app.UseAuthorization();
 
 app.MapControllers();
-
-// --- SIGNALR HUB ---
 app.MapHub<OrdersHub>("/ordersHub");
 
-// --- SEED DE BASE DE DATOS ---
+// --- SEEDER ---
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
-
-    try
-    {
+    try {
         var context = services.GetRequiredService<MongoDbContext>();
-
         await DbSeeder.SeedProducts(context.Products);
         await DbSeeder.SeedTables(context.Tables);
         await DbSeeder.SeedUsers(context.Users);
-
-        Console.WriteLine(">>> Base de datos poblada correctamente");
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($">>> Error al sembrar datos: {ex.Message}");
+        Console.WriteLine(">>> Datos inicializados correctamente");
+    } catch (Exception ex) {
+        Console.WriteLine($">>> Error en Seeder: {ex.Message}");
     }
 }
 

@@ -27,27 +27,27 @@ public class OrderNotificationService : IOrderNotificationService
     public async Task NotifyOrderPreparing(OrderDto order)
     {
         // Esto cambia el color de la orden en el Admin y registra el 'StartedAt'
-        await _hubContext.Clients.Group("admin").SendAsync("OrderPreparing", order);
+        await _hubContext.Clients.Group("admin").SendAsync("orderpreparing", order);
     }
 
     // 3. Notificar que la orden está lista (KDS -> Mesero y Admin)
     public async Task NotifyOrderReady(OrderDto order)
     {
         // El mesero recibe la alerta sonora y el Admin calcula la eficiencia (ReadyAt - StartedAt)
-        await _hubContext.Clients.All.SendAsync("OrderReady", order);
+        await _hubContext.Clients.All.SendAsync("orderready", order);
     }
 
     // 4. Notificar entrega (Mesa se libera en Admin)
     public async Task NotifyOrderDelivered(string orderId)
     {
         // Al recibir esto, el Admin ejecuta loadData() y la mesa vuelve a verde (Libre)
-        await _hubContext.Clients.All.SendAsync("OrderDelivered", orderId);
+        await _hubContext.Clients.All.SendAsync("orderdelivered", orderId);
     }
 
     // 5. Notificar cancelación
     public async Task NotifyOrderCancelled(string orderId)
     {
-        await _hubContext.Clients.All.SendAsync("OrderCancelled", orderId);
+        await _hubContext.Clients.All.SendAsync("ordercancelled", orderId);
     }
 
     public async Task NotifyProductOutOfStock(string productId)
