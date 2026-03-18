@@ -70,6 +70,8 @@ public class ProductsController : ControllerBase
         var existing = await _productRepository.GetByIdAsync(id);
         if (existing == null) return NotFound();
 
+        product.Id = id;
+
         await _productRepository.UpdateAsync(id, product);
         return NoContent();
     }
