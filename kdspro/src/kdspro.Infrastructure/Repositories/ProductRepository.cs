@@ -108,12 +108,9 @@ public class ProductRepository : IProductRepository
     public async Task UpdateStockAsync(string id, int newStock)
     {
         var filter = Builders<Product>.Filter.Eq(p => p.Id, id);
-
-        // Al actualizar el stock, también nos aseguramos de que 'IsAvailable' 
-        // sea true si el nuevo stock es mayor a cero.
         var update = Builders<Product>.Update
             .Set(p => p.Stock, newStock)
-            .Set(p => p.IsAvailable, newStock > 0);
+            .Set("IsAvailable", newStock > 0);  // ← fix
 
         await _context.Products.UpdateOneAsync(filter, update);
     }

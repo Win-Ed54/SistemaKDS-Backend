@@ -17,4 +17,6 @@ public interface ITableRepository : IGenericRepository<Table>
     /// <param name="isActive">Nuevo estado de disponibilidad (true = disponible, false = fuera de servicio).</param>
     /// <returns>Tarea asincrónica que representa la operación en la base de datos.</returns>
     Task UpdateAvailabilityAsync(string id, bool isActive);
+
+    Task SetOccupiedAsync(int tableNumber, bool occupied);
 }

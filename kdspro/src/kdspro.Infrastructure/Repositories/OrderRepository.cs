@@ -99,4 +99,16 @@ public class OrderRepository : GenericRepository<Order>, IOrderRepository
 
         return await _collection.Find(filter).SortByDescending(o => o.DeliveredAt).ToListAsync(ct);
     }
+
+    public async Task<bool> HasActiveOrdersForTableAsync(int tableNumber, string excludeOrderId)
+    {
+        var filter = Builders<Order>.Filter.And(
+            Builders<Order>.Filter.Eq(o => o.TableNumber, tableNumber),
+            Builders<Order>.Filter.Ne(o => o.Id, excludeOrderId),
+            Builders<Order>.Filter.Lt(o => o.Status, OrderStatus.Delivered)
+        );
+        return await _collection.Find(filter).AnyAsync();
+
+
+    }
 }

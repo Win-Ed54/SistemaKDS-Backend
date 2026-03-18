@@ -7,6 +7,7 @@ namespace kdspro.Domain.Entities;
 /// Entidad que representa un producto del menú (Módulo Menú - Mes 1).
 /// Define la estructura base para hamburguesas, bebidas y acompañamientos.
 /// </summary>
+[BsonIgnoreExtraElements]
 public class Product
 {
     /// <summary>

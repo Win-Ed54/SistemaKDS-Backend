@@ -11,28 +11,26 @@ public static class DbSeeder
 
         var wendysMenu = new List<Product>
         {
-            // Se elimina 'IsAvailable = true' y se agrega 'Stock = 50'
-            // La propiedad IsAvailable se calculará automáticamente como true mientras Stock > 0
-            new() { Name = "Dave's Single", Description = "Cuarto de libra de carne fresca con queso", Price = 5.99m, Category = "Hamburguesas", Stock = 2 },
-            new() { Name = "Dave's Double", Description = "Media libra de carne fresca con queso", Price = 7.49m, Category = "Hamburguesas", Stock = 50 },
-            new() { Name = "Baconator", Description = "Doble carne, doble queso y mucho tocino", Price = 8.99m, Category = "Hamburguesas", Stock = 50 },
-            new() { Name = "Son of Baconator", Description = "Versión junior del clásico Baconator", Price = 6.25m, Category = "Hamburguesas", Stock = 50 },
-            new() { Name = "Spicy Chicken Sandwich", Description = "Pechuga de pollo picante empanizada", Price = 5.49m, Category = "Pollo", Stock = 50 },
-            new() { Name = "Classic Chicken Sandwich", Description = "Pechuga de pollo clásica empanizada", Price = 5.19m, Category = "Pollo", Stock = 50 },
-            new() { Name = "10 PC. Spicy Nuggets", Description = "Nuggets de pollo picantes", Price = 4.99m, Category = "Pollo", Stock = 50 },
-            new() { Name = "10 PC. Crispy Nuggets", Description = "Nuggets de pollo crujientes", Price = 4.99m, Category = "Pollo", Stock = 50 },
-            new() { Name = "Natural-Cut Fries (L)", Description = "Papas fritas con sal de mar", Price = 3.25m, Category = "Acompañamientos", Stock = 100 },
-            new() { Name = "Baconator Fries", Description = "Papas con queso derretido y tocino", Price = 4.50m, Category = "Acompañamientos", Stock = 100 },
-            new() { Name = "Chili Cheese Fries", Description = "Papas con chili y queso", Price = 4.25m, Category = "Acompañamientos", Stock = 100 },
-            new() { Name = "Classic Chili (L)", Description = "El famoso chili de Wendy's", Price = 3.99m, Category = "Acompañamientos", Stock = 100 },
-            new() { Name = "Baked Potato w/ Cheese", Description = "Papa horneada con queso", Price = 3.50m, Category = "Acompañamientos", Stock = 100 },
-            new() { Name = "Chocolate Frosty (L)", Description = "Postre lácteo congelado sabor chocolate", Price = 2.99m, Category = "Postres", Stock = 200 },
-            new() { Name = "Vanilla Frosty (L)", Description = "Postre lácteo congelado sabor vainilla", Price = 2.99m, Category = "Postres", Stock = 200 },
-            new() { Name = "Coca-Cola (L)", Description = "Bebida carbonatada grande", Price = 2.50m, Category = "Bebidas", Stock = 500 },
-            new() { Name = "Lemonade (L)", Description = "Limonada fresca natural", Price = 2.75m, Category = "Bebidas", Stock = 500 },
-            new() { Name = "Iced Tea (L)", Description = "Té frío sin azúcar", Price = 2.25m, Category = "Bebidas", Stock = 500 },
-            new() { Name = "Cold Brew Coffee", Description = "Café frío artesanal", Price = 3.50m, Category = "Bebidas", Stock = 500 },
-            new() { Name = "Apple Pecan Salad", Description = "Ensalada fresca con manzana y nueces", Price = 7.99m, Category = "Ensaladas", Stock = 30 }
+            new() { Name = "Dave's Single",           Description = "Cuarto de libra de carne fresca con queso",   Price = 5.99m,  Category = "Hamburguesas",    Stock = 2   },
+            new() { Name = "Dave's Double",           Description = "Media libra de carne fresca con queso",       Price = 7.49m,  Category = "Hamburguesas",    Stock = 50  },
+            new() { Name = "Baconator",               Description = "Doble carne, doble queso y mucho tocino",     Price = 8.99m,  Category = "Hamburguesas",    Stock = 50  },
+            new() { Name = "Son of Baconator",        Description = "Versión junior del clásico Baconator",        Price = 6.25m,  Category = "Hamburguesas",    Stock = 50  },
+            new() { Name = "Spicy Chicken Sandwich",  Description = "Pechuga de pollo picante empanizada",         Price = 5.49m,  Category = "Pollo",           Stock = 50  },
+            new() { Name = "Classic Chicken Sandwich",Description = "Pechuga de pollo clásica empanizada",         Price = 5.19m,  Category = "Pollo",           Stock = 50  },
+            new() { Name = "10 PC. Spicy Nuggets",    Description = "Nuggets de pollo picantes",                   Price = 4.99m,  Category = "Pollo",           Stock = 50  },
+            new() { Name = "10 PC. Crispy Nuggets",   Description = "Nuggets de pollo crujientes",                 Price = 4.99m,  Category = "Pollo",           Stock = 50  },
+            new() { Name = "Natural-Cut Fries (L)",   Description = "Papas fritas con sal de mar",                 Price = 3.25m,  Category = "Acompañamientos", Stock = 100 },
+            new() { Name = "Baconator Fries",         Description = "Papas con queso derretido y tocino",          Price = 4.50m,  Category = "Acompañamientos", Stock = 100 },
+            new() { Name = "Chili Cheese Fries",      Description = "Papas con chili y queso",                     Price = 4.25m,  Category = "Acompañamientos", Stock = 100 },
+            new() { Name = "Classic Chili (L)",       Description = "El famoso chili de Wendy's",                  Price = 3.99m,  Category = "Acompañamientos", Stock = 100 },
+            new() { Name = "Baked Potato w/ Cheese",  Description = "Papa horneada con queso",                     Price = 3.50m,  Category = "Acompañamientos", Stock = 100 },
+            new() { Name = "Chocolate Frosty (L)",    Description = "Postre lácteo congelado sabor chocolate",     Price = 2.99m,  Category = "Postres",         Stock = 200 },
+            new() { Name = "Vanilla Frosty (L)",      Description = "Postre lácteo congelado sabor vainilla",      Price = 2.99m,  Category = "Postres",         Stock = 200 },
+            new() { Name = "Coca-Cola (L)",           Description = "Bebida carbonatada grande",                   Price = 2.50m,  Category = "Bebidas",         Stock = 500 },
+            new() { Name = "Lemonade (L)",            Description = "Limonada fresca natural",                     Price = 2.75m,  Category = "Bebidas",         Stock = 500 },
+            new() { Name = "Iced Tea (L)",            Description = "Té frío sin azúcar",                          Price = 2.25m,  Category = "Bebidas",         Stock = 500 },
+            new() { Name = "Cold Brew Coffee",        Description = "Café frío artesanal",                         Price = 3.50m,  Category = "Bebidas",         Stock = 500 },
+            new() { Name = "Apple Pecan Salad",       Description = "Ensalada fresca con manzana y nueces",        Price = 7.99m,  Category = "Ensaladas",       Stock = 30  }
         };
 
         await collection.InsertManyAsync(wendysMenu);
@@ -57,14 +55,20 @@ public static class DbSeeder
 
     public static async Task SeedUsers(IMongoCollection<User> users)
     {
+        // ✅ Siempre recrea los usuarios para garantizar que los hashes sean correctos.
+        // En producción cambiarías esto por una verificación por username.
         var count = await users.CountDocumentsAsync(_ => true);
-        if(count > 0) return;
+        if (count > 0) return;
 
+        // CREDENCIALES DE ACCESO:
+        // admin   → Admin_KDS_2026!
+        // kitchen → kitchen2026
+        // waiter  → waiter2026
         await users.InsertManyAsync(new List<User>
         {
-           new() { Username = "admin", PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin_KDS_2026!"), Role = "admin" },
-           new() { Username = "kitchen", PasswordHash = BCrypt.Net.BCrypt.HashPassword("2026"), Role = "kitchen" },
-           new() { Username = "waiter", PasswordHash = BCrypt.Net.BCrypt.HashPassword("2027"), Role = "waiter" }
-        }); 
+            new() { Username = "admin",   PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin_KDS_2026!"), Role = "admin"   },
+            new() { Username = "kitchen", PasswordHash = BCrypt.Net.BCrypt.HashPassword("kitchen2026"),     Role = "kitchen" },
+            new() { Username = "waiter",  PasswordHash = BCrypt.Net.BCrypt.HashPassword("waiter2026"),      Role = "waiter"  },
+        });
     }
 }

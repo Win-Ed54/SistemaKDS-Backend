@@ -34,4 +34,10 @@ public class TableRepository : GenericRepository<Table>, ITableRepository
         // Esto garantiza que el cambio sea inmediato en la base de datos de Docker
         await _collection.UpdateOneAsync(filter, update);
     }
+    public async Task SetOccupiedAsync(int tableNumber, bool occupied)
+    {
+        var filter = Builders<Table>.Filter.Eq(t => t.Number, tableNumber);
+        var update = Builders<Table>.Update.Set(t => t.IsOccupied, occupied);
+        await _collection.UpdateOneAsync(filter, update);
+    }
 }

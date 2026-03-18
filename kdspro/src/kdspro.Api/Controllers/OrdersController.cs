@@ -31,7 +31,7 @@ public class OrdersController : ControllerBase
 
             // 1. NOTIFICAR A COCINA Y ADMIN (Nueva orden entra al sistema)
             await _hub.Clients.Group("kitchen").SendAsync("receiveorder", order);
-            await _hub.Clients.Group("admin").SendAsync("ordercreated", order);
+            await _hub.Clients.Group("admin").SendAsync("receiveorder", order);
 
             // 2. ACTUALIZAR STOCK EN TIEMPO REAL PARA MESEROS
             foreach (var item in order.Items)
@@ -109,4 +109,35 @@ public class OrdersController : ControllerBase
     [Authorize(Roles = "kitchen,admin")]
     [HttpGet("active")]
     public async Task<ActionResult<List<OrderDto>>> GetActiveOrders() => Ok(await _orderService.GetActiveOrders());
+
+    [Authorize(Roles = "admin")]
+    [HttpGet("history")]
+    public async Task<ActionResult<List<OrderDto>>> GetHistory()
+    => Ok(await _orderService.GetHistory());
+
+    [Authorize(Roles = "admin")]
+    [HttpGet("top-products")]
+    public async Task<IActionResult> GetTopProducts([FromQuery] int limit = 10)
+    {
+        var history = await _orderService.GetHistory();
+
+        var topProducts = history
+            // Solo órdenes entregadas (status = 3 = Delivered)
+            .Where(o => (int)o.Status == 3)
+            .SelectMany(o => o.Items)
+            .GroupBy(i => new { i.ProductId, i.ProductName })
+            .Select(g => new
+            {
+                productId = g.Key.ProductId,
+                productName = g.Key.ProductName,
+                totalSold = g.Sum(i => i.Quantity),
+                totalOrders = g.Count()
+            })
+            .OrderByDescending(x => x.totalSold)
+            .Take(limit)
+            .ToList();
+
+        return Ok(topProducts);
+    }
 }
+

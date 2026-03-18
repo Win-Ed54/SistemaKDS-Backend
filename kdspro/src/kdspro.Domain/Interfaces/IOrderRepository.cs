@@ -33,6 +33,6 @@ namespace kdspro.Domain.Interfaces
         // Mantenemos este por compatibilidad si es necesario, pero el de arriba es el que soluciona la eficiencia
         Task UpdateStatusAsync(string id, OrderStatus status, CancellationToken ct = default);
 
-        
+        Task<bool> HasActiveOrdersForTableAsync(int tableNumber, string excludeOrderId);
     }
 }

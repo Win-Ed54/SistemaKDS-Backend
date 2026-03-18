@@ -11,15 +11,19 @@ public class OrderService : IOrderService
 {
     private readonly IOrderRepository _orderRepository;
     private readonly IProductRepository _productRepository;
+    private readonly ITableRepository _tableRepository;         // ✅ NUEVO
     private readonly IOrderNotificationService _notificationService;
 
-    public OrderService(IOrderRepository orderRepository,
-    IProductRepository productRepository,
-    IOrderNotificationService notificationService)
+    public OrderService(
+        IOrderRepository orderRepository,
+        IProductRepository productRepository,
+        ITableRepository tableRepository,                       // ✅ NUEVO
+        IOrderNotificationService notificationService)
     {
         _orderRepository = orderRepository;
         _productRepository = productRepository;
-        _notificationService = notificationService; 
+        _tableRepository = tableRepository;                     // ✅ NUEVO
+        _notificationService = notificationService;
     }
 
     public async Task<OrderDto> CreateOrder(CreateOrderDto dto)
@@ -49,7 +53,6 @@ public class OrderService : IOrderService
             WaiterName = dto.WaiterName,
             Status = OrderStatus.Pending,
             CreatedAt = DateTime.UtcNow,
-            // IMPORTANTE: Inicializamos tiempos en null
             StartedAt = null,
             ReadyAt = null,
             Items = dto.Items.Select(i => new OrderItem
@@ -62,8 +65,11 @@ public class OrderService : IOrderService
         };
 
         await _orderRepository.CreateAsync(order);
-        
-        // 3. NOTIFICAR A COCINA Y ADMIN (Para actualización automática sin F5)
+
+        // ✅ 3. MARCAR MESA COMO OCUPADA
+        await _tableRepository.SetOccupiedAsync(dto.TableNumber, true);
+
+        // 4. NOTIFICAR A COCINA Y ADMIN
         await _notificationService.NotifyNewOrder(order);
 
         var resultDto = MapToDto(order);
@@ -76,71 +82,61 @@ public class OrderService : IOrderService
         return resultDto;
     }
 
-    // --- ACTUALIZACIÓN DE ESTADOS CON REGISTRO DE TIEMPOS (FIX EFICIENCIA) ---
-
     public async Task SetPreparing(string orderId)
     {
-        // Guardamos la hora de inicio para el cálculo de eficiencia
         var startTime = DateTime.UtcNow;
-        await _orderRepository.UpdateStatusWithTimeAsync(orderId, OrderStatus.Preparing, startTime, null); 
-        
-        // Notificar al Admin para que vea el cambio de color y registre el tiempo de inicio
+        await _orderRepository.UpdateStatusWithTimeAsync(orderId, OrderStatus.Preparing, startTime, null);
+
         var order = await GetOrderById(orderId);
-        if(order != null) await _notificationService.NotifyOrderPreparing(order);
+        if (order != null) await _notificationService.NotifyOrderPreparing(order);
     }
 
     public async Task SetReady(string orderId)
     {
-        // Guardamos la hora de finalización
         var readyTime = DateTime.UtcNow;
         await _orderRepository.UpdateStatusWithTimeAsync(orderId, OrderStatus.Ready, null, readyTime);
-        
-        // Notificar al Admin para que calcule el TIEMPO PROMEDIO (ReadyAt - StartedAt)
+
         var order = await GetOrderById(orderId);
-        if(order != null) await _notificationService.NotifyOrderReady(order);
+        if (order != null) await _notificationService.NotifyOrderReady(order);
     }
 
     public async Task SetFinished(string orderId)
     {
+        // Obtener la orden ANTES de cambiar estado (necesitamos el TableNumber)
+        var order = await _orderRepository.GetByIdAsync(orderId);
+
         await _orderRepository.UpdateStatusAsync(orderId, OrderStatus.Delivered);
-        
-        // Notificar al Admin para liberar la mesa en el Dashboard
+
+        // ✅ LIBERAR MESA si no quedan más órdenes activas en ella
+        if (order != null)
+        {
+            var stillActive = await _orderRepository.HasActiveOrdersForTableAsync(order.TableNumber, orderId);
+            if (!stillActive)
+                await _tableRepository.SetOccupiedAsync(order.TableNumber, false);
+        }
+
         await _notificationService.NotifyOrderDelivered(orderId);
     }
 
     public async Task CancelOrder(string orderId)
     {
+        // Misma lógica que SetFinished: liberar mesa si no hay más órdenes
+        var order = await _orderRepository.GetByIdAsync(orderId);
+
         await _orderRepository.UpdateStatusAsync(orderId, OrderStatus.Cancelled);
+
+        // ✅ LIBERAR MESA si no quedan más órdenes activas
+        if (order != null)
+        {
+            var stillActive = await _orderRepository.HasActiveOrdersForTableAsync(order.TableNumber, orderId);
+            if (!stillActive)
+                await _tableRepository.SetOccupiedAsync(order.TableNumber, false);
+        }
+
         await _notificationService.NotifyOrderCancelled(orderId);
     }
 
-    // --- MAPPER CON TIEMPOS ---
-    private static OrderDto MapToDto(Order order)
-    {
-        return new OrderDto
-        {
-            Id = order.Id!,
-            TableNumber = order.TableNumber,
-            CustomerName = order.CustomerName,
-            WaiterName = order.WaiterName,
-            Status = order.Status,
-            CreatedAt = order.CreatedAt,
-            
-            // ESTOS CAMPOS SON LOS QUE HACEN QUE EL DASHBOARD NO MARQUE 0 MIN
-            StartedAt = order.StartedAt, 
-            ReadyAt = order.ReadyAt,     
-
-            Items = order.Items?.Select(i => new OrderItemDto
-            {
-                ProductId = i.ProductId,
-                ProductName = i.ProductName,
-                Quantity = i.Quantity,
-                Notes = i.Notes,
-                CurrentStock = 0 // Se llena en el CreateOrder si es necesario
-            }).ToList() ?? new List<OrderItemDto>()
-        };
-    }
-
+    // --- GETTERS ---
     public async Task<OrderDto?> GetOrderById(string id)
     {
         var order = await _orderRepository.GetByIdAsync(id);
@@ -164,4 +160,25 @@ public class OrderService : IOrderService
         var orders = await _orderRepository.GetHistoryAsync();
         return orders.Select(MapToDto).ToList();
     }
+
+    // --- MAPPER ---
+    private static OrderDto MapToDto(Order order) => new()
+    {
+        Id         = order.Id!,
+        TableNumber  = order.TableNumber,
+        CustomerName = order.CustomerName,
+        WaiterName   = order.WaiterName,
+        Status       = order.Status,
+        CreatedAt    = order.CreatedAt,
+        StartedAt    = order.StartedAt,
+        ReadyAt      = order.ReadyAt,
+        Items = order.Items?.Select(i => new OrderItemDto
+        {
+            ProductId    = i.ProductId,
+            ProductName  = i.ProductName,
+            Quantity     = i.Quantity,
+            Notes        = i.Notes,
+            CurrentStock = 0
+        }).ToList() ?? []
+    };
 }
