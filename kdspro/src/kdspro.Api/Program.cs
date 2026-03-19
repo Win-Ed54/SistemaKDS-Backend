@@ -83,21 +83,44 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
     {
-        policy.WithOrigins(allowedOrigins)
+        //policy.WithOrigins(allowedOrigins)
+        policy.WithOrigins(
+            "http://localhost:5173",
+            "http://localhost:5174",
+            "http://192.168.204.71:5173",
+            "http://172.24.0.1:5173" 
+        )
               .AllowAnyHeader()
               .AllowAnyMethod()
-              .AllowCredentials(); // Crítico para SignalR
+              .AllowCredentials();
     });
 });
 
 // --- DEPENDENCIAS ---
-builder.Services.AddSingleton<IMongoClient>(sp => new MongoClient("mongodb://mongodb:27017"));
-builder.Services.AddScoped<IMongoDatabase>(sp => {
+//builder.Services.AddSingleton<IMongoClient>(sp => new MongoClient("mongodb://mongodb:27017"));
+
+//builder.Services.AddScoped<IMongoDatabase>(sp => {
+  //  var client = sp.GetRequiredService<IMongoClient>();
+    //return client.GetDatabase("kdspro");
+//});
+//--conexion Temporal
+var connectionString = builder.Configuration["MongoDbSettings:ConnectionString"] 
+    ?? "mongodb://localhost:27017";
+
+builder.Services.AddSingleton<IMongoClient>(sp =>
+    new MongoClient(connectionString));
+
+var databaseName = builder.Configuration["MongoDbSettings:DatabaseName"] 
+    ?? "kdspro";
+
+builder.Services.AddScoped<IMongoDatabase>(sp =>
+{
     var client = sp.GetRequiredService<IMongoClient>();
-    return client.GetDatabase("kdspro");
+    return client.GetDatabase(databaseName);
 });
 
-builder.Services.AddSingleton<MongoDbContext>();
+//builder.Services.AddSingleton<MongoDbContext>();
+builder.Services.AddScoped<MongoDbContext>();
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 builder.Services.AddScoped<ITableRepository, TableRepository>();
