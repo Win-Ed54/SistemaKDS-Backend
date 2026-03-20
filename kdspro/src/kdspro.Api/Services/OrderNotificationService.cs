@@ -54,4 +54,10 @@ public class OrderNotificationService : IOrderNotificationService
     {
         await _hubContext.Clients.All.SendAsync("productoutofstock", productId);
     }
+
+    public async Task NotifyStockUpdated(string productId, int newStock)
+    {
+        await _hubContext.Clients.Group("waiter").SendAsync("stockupdated", productId, newStock);
+        await _hubContext.Clients.Group("admin").SendAsync("stockupdated", productId, newStock);
+    }
 }

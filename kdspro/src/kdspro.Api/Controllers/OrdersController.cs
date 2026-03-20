@@ -28,18 +28,15 @@ public class OrdersController : ControllerBase
         try
         {
             var order = await _orderService.CreateOrder(dto);
-
-            // 1. NOTIFICAR A COCINA Y ADMIN (Nueva orden entra al sistema)
-            await _hub.Clients.Group("kitchen").SendAsync("receiveorder", order);
-            await _hub.Clients.Group("admin").SendAsync("receiveorder", order);
-
-            // 2. ACTUALIZAR STOCK EN TIEMPO REAL PARA MESEROS
+            // ✅ Las notificaciones de nueva orden y stock las maneja
+            //    OrderService.CreateOrder → NotifyNewOrder + NotifyProductOutOfStock
+            //    Solo el stockupdated por waiter va aquí porque el servicio
+            //    no tiene acceso directo al grupo "waiter" en este momento
             foreach (var item in order.Items)
             {
                 await _hub.Clients.Group("waiter")
-                    .SendAsync("stockupdated", item.ProductId, item.CurrentStock); 
+                    .SendAsync("stockupdated", item.ProductId, item.CurrentStock);
             }
-
             return Ok(order);
         }
         catch (Exception ex)
@@ -52,14 +49,12 @@ public class OrdersController : ControllerBase
     [HttpPatch("{id}/preparing")]
     public async Task<IActionResult> Preparing(string id)
     {
-        // IMPORTANTE: El servicio debe guardar 'StartedAt = DateTime.UtcNow'
         await _orderService.SetPreparing(id);
         var order = await _orderService.GetOrderById(id);
         if (order == null) return NotFound();
 
-        // NOTIFICAR: Cocina mueve tarjeta, Admin cambia estado a "Cocinando"
+        // ✅ Solo notifica a kitchen — admin ya lo recibe en SetPreparing via servicio
         await _hub.Clients.Group("kitchen").SendAsync("orderpreparing", order);
-        await _hub.Clients.Group("admin").SendAsync("orderpreparing", order);
 
         return Ok(order);
     }
@@ -68,12 +63,11 @@ public class OrdersController : ControllerBase
     [HttpPatch("{id}/ready")]
     public async Task<IActionResult> Ready(string id)
     {
-        // IMPORTANTE: El servicio debe guardar 'ReadyAt = DateTime.UtcNow'
         await _orderService.SetReady(id);
         var order = await _orderService.GetOrderById(id);
         if (order == null) return NotFound();
 
-        // NOTIFICAR A TODOS: Mesero recibe alerta, Admin calcula EFICIENCIA (ReadyAt - StartedAt)
+        // ✅ Notifica a todos (mesero recibe alerta, cocina mueve tarjeta)
         await _hub.Clients.All.SendAsync("orderready", order);
 
         return Ok(order);
@@ -83,10 +77,10 @@ public class OrdersController : ControllerBase
     [HttpPatch("{id}/finish")]
     public async Task<IActionResult> Finish(string id)
     {
+        // ✅ SetFinished ya maneja: liberar mesa + NotifyOrderDelivered
         await _orderService.SetFinished(id);
 
-        // NOTIFICAR: Limpia KDS y libera "CAPACIDAD DE SALÓN" en Admin
-        await _hub.Clients.All.SendAsync("orderdelivered", id);
+        // tablesupdated solo lo emite el controller (no está en el servicio)
         await _hub.Clients.Group("admin").SendAsync("tablesupdated");
 
         return Ok(new { id, message = "Orden entregada con éxito" });
@@ -96,10 +90,13 @@ public class OrdersController : ControllerBase
     [HttpPatch("{id}/cancel")]
     public async Task<IActionResult> Cancel(string id)
     {
+        // ✅ CancelOrder ya maneja:
+        //    - Devolver stock → RestoreStockAsync
+        //    - Notificar stock → NotifyStockUpdated (waiter + admin)
+        //    - Liberar mesa → SetOccupiedAsync
+        //    - Notificar cancelación → NotifyOrderCancelled (All)
+        //    - tablesupdated → solo aquí
         await _orderService.CancelOrder(id);
-
-        // NOTIFICAR: Elimina de todas las pantallas y libera mesa
-        await _hub.Clients.All.SendAsync("ordercancelled", id);
         await _hub.Clients.Group("admin").SendAsync("tablesupdated");
 
         return NoContent();
@@ -108,12 +105,13 @@ public class OrdersController : ControllerBase
     // --- GETTERS ---
     [Authorize(Roles = "kitchen,admin")]
     [HttpGet("active")]
-    public async Task<ActionResult<List<OrderDto>>> GetActiveOrders() => Ok(await _orderService.GetActiveOrders());
+    public async Task<ActionResult<List<OrderDto>>> GetActiveOrders()
+        => Ok(await _orderService.GetActiveOrders());
 
     [Authorize(Roles = "admin")]
     [HttpGet("history")]
     public async Task<ActionResult<List<OrderDto>>> GetHistory()
-    => Ok(await _orderService.GetHistory());
+        => Ok(await _orderService.GetHistory());
 
     [Authorize(Roles = "admin")]
     [HttpGet("top-products")]
@@ -122,15 +120,14 @@ public class OrdersController : ControllerBase
         var history = await _orderService.GetHistory();
 
         var topProducts = history
-            // Solo órdenes entregadas (status = 3 = Delivered)
             .Where(o => (int)o.Status == 3)
             .SelectMany(o => o.Items)
             .GroupBy(i => new { i.ProductId, i.ProductName })
             .Select(g => new
             {
-                productId = g.Key.ProductId,
+                productId   = g.Key.ProductId,
                 productName = g.Key.ProductName,
-                totalSold = g.Sum(i => i.Quantity),
+                totalSold   = g.Sum(i => i.Quantity),
                 totalOrders = g.Count()
             })
             .OrderByDescending(x => x.totalSold)
@@ -140,4 +137,3 @@ public class OrdersController : ControllerBase
         return Ok(topProducts);
     }
 }
-

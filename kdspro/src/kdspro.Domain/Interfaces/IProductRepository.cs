@@ -47,4 +47,6 @@ public interface IProductRepository
 
     Task UpdateStockAsync(string id, int newStock);
 
+    Task RestoreStockAsync(string productId, int quantity);
+
 }

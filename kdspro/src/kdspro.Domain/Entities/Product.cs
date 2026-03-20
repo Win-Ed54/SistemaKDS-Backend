@@ -52,4 +52,6 @@ public class Product
     /// Facilita el filtrado en la terminal del mesero y reportes de ventas.
     /// </summary>
     public string Category { get; set; } = string.Empty;
+
+    public string ImageUrl { get; set; } = "";
 }

@@ -22,4 +22,7 @@ public interface IOrderNotificationService
     
     // Notifica cancelación (Para limpiar el resumen del Admin)
     Task NotifyOrderCancelled(string orderId);
+
+    Task NotifyStockUpdated(string productId, int newStock);
+
 }

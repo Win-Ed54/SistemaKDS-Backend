@@ -89,6 +89,8 @@ public class ProductRepository : IProductRepository
         Builders<Product>.Filter.Gte(p => p.Stock, quantity) 
     );
 
+    
+
     // Operación: Restar la cantidad (usando valor negativo)
     var update = Builders<Product>.Update.Inc(p => p.Stock, -quantity);
 
@@ -98,6 +100,16 @@ public class ProductRepository : IProductRepository
     // Retorna true si se logró modificar el documento (había stock suficiente)
     return result.ModifiedCount > 0;
     }
+
+    public async Task RestoreStockAsync(string productId, int quantity)
+    {
+        var filter = Builders<Product>.Filter.Eq(p => p.Id, productId);
+        var update = Builders<Product>.Update
+            .Inc(p => p.Stock, quantity)
+            .Set("IsAvailable", true);
+        await _context.Products.UpdateOneAsync(filter, update);
+    }
+
 
     /// <summary>
     /// MÓDULO ADMIN: Actualización manual de inventario.
