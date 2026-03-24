@@ -15,6 +15,7 @@
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Protocols.NewtonsoftJson" Version="10.0.5" />
     <PackageReference Include="MongoDB.Driver" Version="3.6.0" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+    <Content Include="wwwroot\**" CopyToPublishDirectory="PreserveNewest" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.16.0" />
   </ItemGroup>
 
