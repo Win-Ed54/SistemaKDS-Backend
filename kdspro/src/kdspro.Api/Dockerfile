@@ -1,38 +1,35 @@
-# Imagen base
+# 1. Imagen de ejecución (Runtime)
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
 WORKDIR /app
 EXPOSE 8080
 
-# Build
+# 2. SDK para compilación
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
-# Copiar solution
-COPY kdspro.sln .
+# Copiar archivos de proyecto para restaurar dependencias (Caché eficiente)
+COPY ["kdspro.Api/kdspro.Api.csproj", "kdspro.Api/"]
+COPY ["kdspro.Application/kdspro.Application.csproj", "kdspro.Application/"]
+COPY ["kdspro.Domain/kdspro.Domain.csproj", "kdspro.Domain/"]
+COPY ["kdspro.Infrastructure/kdspro.Infrastructure.csproj", "kdspro.Infrastructure/"]
 
-# Copiar proyectos
-COPY kdspro.Api/kdspro.Api.csproj kdspro.Api/
-COPY kdspro.Application/kdspro.Application.csproj kdspro.Application/
-COPY kdspro.Domain/kdspro.Domain.csproj kdspro.Domain/
-COPY kdspro.Infrastructure/kdspro.Infrastructure.csproj kdspro.Infrastructure/
+RUN dotnet restore "kdspro.Api/kdspro.Api.csproj"
 
-# Restore
-RUN dotnet restore
-
-# Copiar todo el código
+# Copiar todo el código fuente
 COPY . .
 
-# Build
-WORKDIR /src/kdspro.Api
-RUN dotnet build kdspro.Api.csproj -c Release -o /app/build
+# Compilar el proyecto
+WORKDIR "/src/kdspro.Api"
+RUN dotnet build "kdspro.Api.csproj" -c Release -o /app/build
 
-# Publish
+# 3. Etapa de publicación
 FROM build AS publish
-WORKDIR /src/kdspro.Api
-RUN dotnet publish kdspro.Api.csproj -c Release -o /app/publish
+RUN dotnet publish "kdspro.Api.csproj" -c Release -o /app/publish /p:UseAppHost=false
 
-# Runtime
+# 4. Imagen final (Runtime)
 FROM base AS final
 WORKDIR /app
+# Copiamos todo lo publicado (esto ya incluye la carpeta wwwroot automáticamente si está en tu proyecto)
 COPY --from=publish /app/publish .
+
 ENTRYPOINT ["dotnet", "kdspro.Api.dll"]
