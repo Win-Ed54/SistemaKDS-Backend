@@ -64,9 +64,17 @@ public static class DbSeeder
         // waiter  → waiter2026
         await users.InsertManyAsync(new List<User>
         {
-            new() { Username = "admin",   PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin_KDS_2026!"), Role = "admin"   },
-            new() { Username = "kitchen", PasswordHash = BCrypt.Net.BCrypt.HashPassword("kitchen2026"),     Role = "kitchen" },
-            new() { Username = "waiter",  PasswordHash = BCrypt.Net.BCrypt.HashPassword("waiter2026"),      Role = "waiter"  },
+            new() { Username = "admin",    PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin_KDS_2026!"), Role = "admin" },
+        new() { Username = "gerente",  PasswordHash = BCrypt.Net.BCrypt.HashPassword("Gerente2026!"),    Role = "admin" },
+
+        // COCINA (KITCHEN)
+        new() { Username = "kitchen1", PasswordHash = BCrypt.Net.BCrypt.HashPassword("chef2026"),       Role = "kitchen" },
+        new() { Username = "kitchen2", PasswordHash = BCrypt.Net.BCrypt.HashPassword("preparador2026"), Role = "kitchen" },
+
+        // MESEROS (WAITER)
+        new() { Username = "waiter1",  PasswordHash = BCrypt.Net.BCrypt.HashPassword("waiter2026"),     Role = "waiter" },
+        new() { Username = "Edwin",   PasswordHash = BCrypt.Net.BCrypt.HashPassword("Edwin2026"),     Role = "waiter" },
+        new() { Username = "Rene",      PasswordHash = BCrypt.Net.BCrypt.HashPassword("Rene2026"),        Role = "waiter" }
         });
     }
 }
