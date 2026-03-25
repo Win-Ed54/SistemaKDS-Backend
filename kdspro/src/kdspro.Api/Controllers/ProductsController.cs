@@ -55,12 +55,16 @@ public class ProductsController : ControllerBase
         var existing = await _productRepository.GetByIdAsync(id);
         if (existing == null) return NotFound();
 
+        if (string.IsNullOrEmpty(product.ImageUrl) || product.ImageUrl == "default.png") 
+    {
+        product.ImageUrl = existing.ImageUrl;
+    }
         // ✅ Preservar el Id para que MongoDB no lo pierda
         product.Id = id;
         await _productRepository.UpdateAsync(id, product);
 
         // ✅ Notificar a meseros que el catálogo cambió
-        await _hub.Clients.Group("waiter").SendAsync("productupdated");
+        await _hub.Clients.All.SendAsync("productupdated");
 
         return NoContent();
     }
