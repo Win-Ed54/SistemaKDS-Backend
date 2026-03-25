@@ -36,7 +36,10 @@ public class Order
     // --- IDENTIFICACIÓN ---
 
     public string CustomerName { get; set; } = "Cliente";
+    public string WaiterId { get; set; } = null!;
     public string WaiterName { get; set; } = string.Empty;
+
+    
 
     // --- CONTENIDO ---
 

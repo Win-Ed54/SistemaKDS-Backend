@@ -25,9 +25,11 @@ public class OrdersController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> CreateOrder([FromBody] CreateOrderDto dto)
     {
+        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        var username = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value;
         try
         {
-            var order = await _orderService.CreateOrder(dto);
+            var order = await _orderService.CreateOrder(dto, userId!, username!);
             // ✅ Las notificaciones de nueva orden y stock las maneja
             //    OrderService.CreateOrder → NotifyNewOrder + NotifyProductOutOfStock
             //    Solo el stockupdated por waiter va aquí porque el servicio
@@ -136,4 +138,19 @@ public class OrdersController : ControllerBase
 
         return Ok(topProducts);
     }
+
+    [Authorize(Roles = "waiter")]
+    [HttpGet("my")]
+    public async Task<IActionResult> GetMyOrders()
+    {
+        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized();
+
+        var orders = await _orderService.GetMyOrders(userId);
+        return Ok(orders);
+    }
+
+
 }

@@ -111,4 +111,11 @@ public class OrderRepository : GenericRepository<Order>, IOrderRepository
 
 
     }
+    public async Task<List<Order>> GetOrdersByWaiterAsync(string waiterId)
+    {
+        return await _collection
+            .Find(o => o.WaiterId == waiterId && o.Status != OrderStatus.Delivered)
+            .ToListAsync();
+    }
+
 }

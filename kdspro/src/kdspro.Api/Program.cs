@@ -10,6 +10,8 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Newtonsoft.Json.Serialization;
+using Microsoft.AspNetCore.SignalR;
+using System.Security.Claims;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -74,7 +76,6 @@ builder.Services.AddSignalR(options =>
     options.PayloadSerializerSettings.ContractResolver = new CamelCasePropertyNamesContractResolver();
     options.PayloadSerializerSettings.Converters.Add(new Newtonsoft.Json.Converters.StringEnumConverter());
 });
-
 // --- CORS ---
 var allowedOrigins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() 
     ?? new[] { "http://localhost:5173", "http://localhost:5174" };
@@ -125,6 +126,7 @@ builder.Services.AddScoped<IMongoDatabase>(sp =>
 });
 
 //builder.Services.AddSingleton<MongoDbContext>();
+builder.Services.AddSingleton<IUserIdProvider, NameIdentifierUserIdProvider>();
 builder.Services.AddScoped<MongoDbContext>();
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
@@ -166,5 +168,7 @@ using (var scope = app.Services.CreateScope())
         Console.WriteLine($">>> Error en Seeder: {ex.Message}");
     }
 }
+
+
 
 app.Run();

@@ -25,7 +25,7 @@ public class OrderService : IOrderService
         _notificationService = notificationService;
     }
 
-    public async Task<OrderDto> CreateOrder(CreateOrderDto dto)
+    public async Task<OrderDto> CreateOrder(CreateOrderDto dto, string userId, string username )
     {
         var updatedStocks = new Dictionary<string, int>();
 
@@ -47,7 +47,8 @@ public class OrderService : IOrderService
         {
             TableNumber  = dto.TableNumber,
             CustomerName = dto.CustomerName,
-            WaiterName   = dto.WaiterName,
+            WaiterId     = userId,
+            WaiterName   = username,
             Status       = OrderStatus.Pending,
             CreatedAt    = DateTime.UtcNow,
             StartedAt    = null,
@@ -62,6 +63,19 @@ public class OrderService : IOrderService
         };
 
         await _orderRepository.CreateAsync(order);
+        foreach (var item in dto.Items)
+{
+    var product = await _productRepository.GetByIdAsync(item.ProductId);
+    if (product != null)
+    {
+        // Esto envía el nuevo stock a todos los meseros y admins vía SignalR
+        await _notificationService.NotifyStockUpdated(product.Id!, product.Stock);
+    }
+}
+
+await _tableRepository.SetOccupiedAsync(dto.TableNumber, true);
+await _notificationService.NotifyNewOrder(order); // Notifica a Cocina y Admin [cite: 55]
+
         await _tableRepository.SetOccupiedAsync(dto.TableNumber, true);
         await _notificationService.NotifyNewOrder(order);
 
@@ -101,6 +115,13 @@ public class OrderService : IOrderService
 
         await _notificationService.NotifyOrderDelivered(orderId);
     }
+
+    public async Task<List<OrderDto>> GetMyOrders(string userId)
+    {
+        var orders = await _orderRepository.GetOrdersByWaiterAsync(userId);
+        return orders.Select(MapToDto).ToList();
+    }
+
 
     // CANCELAR CON DEVOLUCION DE STOCK
     public async Task CancelOrder(string orderId)
@@ -173,4 +194,21 @@ public class OrderService : IOrderService
             CurrentStock = 0
         }).ToList() ?? []
     };
+
+    public async Task<WaiterSummaryDto> GetWaiterSummary(string userId, string username)
+    {
+        var allOrders = await _orderRepository.GetOrdersByWaiterAsync(userId);
+
+        return new WaiterSummaryDto
+        {
+            WaiterId = userId,
+            WaiterName = username,
+            TotalCreated = allOrders.Count,
+            TotalDelivered = allOrders.Count(o => o.Status == OrderStatus.Delivered),
+            MyActiveOrders = allOrders
+                .Where(o => o.Status != OrderStatus.Delivered && o.Status != OrderStatus.Cancelled)
+                .Select(MapToDto)
+                .ToList()
+        };
+    }
 }

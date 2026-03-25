@@ -34,5 +34,8 @@ namespace kdspro.Domain.Interfaces
         Task UpdateStatusAsync(string id, OrderStatus status, CancellationToken ct = default);
 
         Task<bool> HasActiveOrdersForTableAsync(int tableNumber, string excludeOrderId);
+
+        Task<List<Order>> GetOrdersByWaiterAsync(string waiterId);
+
     }
 }
