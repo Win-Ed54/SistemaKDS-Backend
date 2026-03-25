@@ -211,4 +211,21 @@ await _notificationService.NotifyNewOrder(order); // Notifica a Cocina y Admin [
                 .ToList()
         };
     }
+
+    public async Task<IEnumerable<OrderDto>> GetWaiterOrdersToday(string waiterName)
+    {
+        // Obtenemos todas las órdenes del mesero usando el repositorio existente
+        var allOrders = await _orderRepository.GetOrdersByWaiterAsync(waiterName);
+
+        // Filtramos en memoria por la fecha de hoy para mayor simplicidad 
+        // (o puedes añadir el método especializado al IOrderRepository)
+        var today = DateTime.UtcNow.Date;
+
+        return allOrders
+            .Where(o => o.CreatedAt >= today)
+            .OrderByDescending(o => o.CreatedAt)
+            .Select(MapToDto)
+            .ToList();
+    }
+
 }

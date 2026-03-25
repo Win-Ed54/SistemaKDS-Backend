@@ -36,6 +36,7 @@ namespace kdspro.Domain.Interfaces
         Task<bool> HasActiveOrdersForTableAsync(int tableNumber, string excludeOrderId);
 
         Task<List<Order>> GetOrdersByWaiterAsync(string waiterId);
-
+        
+       
     }
 }

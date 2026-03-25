@@ -18,6 +18,8 @@ public interface IOrderService
 
     Task<List<OrderDto>> GetHistory();
 
+    Task<IEnumerable<OrderDto>> GetWaiterOrdersToday(string waiterName);
+
     Task<WaiterSummaryDto> GetWaiterSummary(string userId, string username);
 
     Task SetPreparing(string orderId);

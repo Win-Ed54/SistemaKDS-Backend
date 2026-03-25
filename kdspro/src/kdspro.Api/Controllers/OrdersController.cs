@@ -151,6 +151,19 @@ public class OrdersController : ControllerBase
         var orders = await _orderService.GetMyOrders(userId);
         return Ok(orders);
     }
-
+    [Authorize(Roles = "waiter,admin")]
+    [HttpGet("waiter/{waiterName}/today")]
+    public async Task<ActionResult<IEnumerable<OrderDto>>> GetWaiterOrdersToday(string waiterName)
+    {
+        try
+        {
+            var orders = await _orderService.GetWaiterOrdersToday(waiterName);
+            return Ok(orders);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
 
 }
