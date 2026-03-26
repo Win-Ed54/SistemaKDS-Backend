@@ -25,4 +25,7 @@ public interface IOrderNotificationService
 
     Task NotifyStockUpdated(string productId, int newStock);
 
+    // Añadir al final de la interfaz
+    Task NotifyTableStatusUpdated(int tableNumber, bool isOccupied);
+
 }

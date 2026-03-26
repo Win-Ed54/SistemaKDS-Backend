@@ -54,10 +54,24 @@ public class OrderNotificationService : IOrderNotificationService
     {
         await _hubContext.Clients.All.SendAsync("productoutofstock", productId);
     }
-
     public async Task NotifyStockUpdated(string productId, int newStock)
     {
-        await _hubContext.Clients.Group("waiter").SendAsync("stockupdated", productId, newStock);
-        await _hubContext.Clients.Group("admin").SendAsync("stockupdated", productId, newStock);
+        // Notificamos a meseros para que su menú se actualice al instante
+        // y al admin para que su inventario esté al día.
+        await _hubContext.Clients.Groups("waiter", "admin").SendAsync("stockupdated", productId, newStock);
+
+        // Si el stock llega a 0, disparamos el evento de agotado por si acaso
+        if (newStock <= 0)
+        {
+            await _hubContext.Clients.Groups("waiter", "admin").SendAsync("productoutofstock", productId);
+        }
     }
+
+    public async Task NotifyTableStatusUpdated(int tableNumber, bool isOccupied)
+    {
+        // Esto enviará el evento 'tablesupdated' que tu frontend ya está escuchando
+        await _hubContext.Clients.All.SendAsync("tablesupdated", new { tableNumber, isOccupied });
+    }
+
+
 }

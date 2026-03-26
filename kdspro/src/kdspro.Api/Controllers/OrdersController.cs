@@ -166,4 +166,25 @@ public class OrdersController : ControllerBase
         }
     }
 
+    [Authorize(Roles = "admin")]
+    [HttpPatch("table/{tableNumber}/close")]
+    public async Task<IActionResult> CloseTable(int tableNumber)
+    {
+        try
+        {
+            await _orderService.CloseTable(tableNumber);
+
+            // 📢 Notificamos a TODOS (Meseros y Admin) que la mesa está libre.
+            // Usamos el evento 'tablesupdated' que ya escuchas en el frontend.
+            await _hub.Clients.All.SendAsync("tablesupdated");
+
+            return Ok(new { message = $"Mesa {tableNumber} liberada correctamente." });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+
 }

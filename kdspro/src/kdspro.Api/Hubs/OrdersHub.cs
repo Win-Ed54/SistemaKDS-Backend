@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
 
 namespace kdspro.Api.Hubs;
 
@@ -8,50 +9,49 @@ public class OrdersHub : Hub
 {
     private const string KitchenGroup = "kitchen";
     private const string WaiterGroup = "waiter";
-     private const string AdminGroup = "admin";
+    private const string AdminGroup = "admin";
 
-    // Unirse al grupo de cocina
-    public async Task JoinKitchenGroup()
-    {
-        await Groups.AddToGroupAsync(Context.ConnectionId, KitchenGroup);
-    }
-
-    // Unirse al grupo de meseros
-    public async Task JoinWaiterGroup()
-    {
-        await Groups.AddToGroupAsync(Context.ConnectionId, WaiterGroup);
-    }
-
-    // Unirse al grupo de administradores
-     public async Task JoinAdminGroup()
-    {
-        await Groups.AddToGroupAsync(Context.ConnectionId, AdminGroup);
-    }
-
-    // Cuando un cliente se conecta
+    // ✅ RE-UNIÓN AUTOMÁTICA AL CONECTAR
     public override async Task OnConnectedAsync()
     {
-        Console.WriteLine($"Cliente conectado: {Context.ConnectionId}");
+        // Extraemos el rol directamente del Token JWT del usuario
+        var role = Context.User?.FindFirst(ClaimTypes.Role)?.Value;
+
+        // Al conectar (o reconectar), el Hub lo mete automáticamente a su grupo
+        if (role == "kitchen") await Groups.AddToGroupAsync(Context.ConnectionId, KitchenGroup);
+        else if (role == "waiter") await Groups.AddToGroupAsync(Context.ConnectionId, WaiterGroup);
+        else if (role == "admin") await Groups.AddToGroupAsync(Context.ConnectionId, AdminGroup);
+
+        // Log útil para depuración en desarrollo
+        Console.WriteLine($"🚀 Cliente conectado: {Context.ConnectionId} | Rol: {role?.ToUpper() ?? "SIN ROL"}");
 
         await base.OnConnectedAsync();
     }
 
-    // Cuando un cliente se desconecta
+    // Métodos manuales (por si el frontend necesita forzar la unión)
+    public async Task JoinKitchenGroup() => await Groups.AddToGroupAsync(Context.ConnectionId, KitchenGroup);
+    public async Task JoinWaiterGroup()  => await Groups.AddToGroupAsync(Context.ConnectionId, WaiterGroup);
+    public async Task JoinAdminGroup()   => await Groups.AddToGroupAsync(Context.ConnectionId, AdminGroup);
+
+    // ✅ SINCRONIZACIÓN DE STOCK GLOBAL
+    // Cambiamos productId a string para que coincida con tus IDs de MongoDB/GUID
+    public async Task UpdateStock(string productId, int newStock)
+    {
+        // Notificamos a meseros y admin para que el inventario sea coherente en todo el local
+        await Clients.Groups(WaiterGroup, AdminGroup).SendAsync("stockupdated", productId, newStock);
+    }
+
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
-        Console.WriteLine($"Cliente desconectado: {Context.ConnectionId}");
-
         if (exception != null)
         {
-            Console.WriteLine($"Error: {exception.Message}");
+            Console.WriteLine($"❌ Error en conexión {Context.ConnectionId}: {exception.Message}");
+        }
+        else
+        {
+            Console.WriteLine($"👋 Cliente desconectado: {Context.ConnectionId}");
         }
 
         await base.OnDisconnectedAsync(exception);
-    }
-
-    public async Task UpdateStock(int productId, int newStock)
-    {
-        // Notifica a todos los meseros que el stock cambió
-        await Clients.Group("waiter").SendAsync("stockupdated", productId, newStock);
     }
 }
