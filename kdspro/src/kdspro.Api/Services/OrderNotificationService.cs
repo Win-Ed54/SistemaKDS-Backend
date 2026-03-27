@@ -1,8 +1,6 @@
 using Microsoft.AspNetCore.SignalR;
 using kdspro.Api.Hubs;
-using kdspro.Application.Interfaces; // Asegúrate de que apunte a la nueva ruta de la interfaz
 using kdspro.Application.DTOs;
-using kdspro.Domain.Entities;
 using kdspro.Domain.Interfaces;
 
 namespace kdspro.Api.Services;
@@ -16,62 +14,89 @@ public class OrderNotificationService : IOrderNotificationService
         _hubContext = hubContext;
     }
 
-    // 1. Notificar nueva orden (Mesero -> Cocina y Admin)
-    public async Task NotifyNewOrder(Order order)
+    // ----------------------------
+    // ORDENES
+    // ----------------------------
+
+    public async Task NotifyNewOrder(OrderDto order)
     {
-        // Al enviar al Admin, su Dashboard agregará la orden y marcará la mesa como ocupada
-        await _hubContext.Clients.Groups("kitchen", "admin").SendAsync("receiveorder", order);
+        await _hubContext.Clients.Groups("kitchen", "admin")
+            .SendAsync("receiveorder", order);
+
+        await _hubContext.Clients.Groups("kitchen", "admin")
+            .SendAsync("OrderCreated", order);
     }
 
-    // 2. Notificar que la cocina empezó (KDS -> Admin)
     public async Task NotifyOrderPreparing(OrderDto order)
     {
-        // Esto cambia el color de la orden en el Admin y registra el 'StartedAt'
-        await _hubContext.Clients.Group("admin").SendAsync("orderpreparing", order);
+        await _hubContext.Clients.Group("admin")
+            .SendAsync("orderpreparing", order);
+
+        await _hubContext.Clients.Group("admin")
+            .SendAsync("OrderPreparing", order);
     }
 
-    // 3. Notificar que la orden está lista (KDS -> Mesero y Admin)
     public async Task NotifyOrderReady(OrderDto order)
     {
-        // El mesero recibe la alerta sonora y el Admin calcula la eficiencia (ReadyAt - StartedAt)
-        await _hubContext.Clients.All.SendAsync("orderready", order);
+        await _hubContext.Clients.Groups("waiter", "admin")
+            .SendAsync("orderready", order);
+
+        await _hubContext.Clients.Groups("waiter", "admin")
+            .SendAsync("OrderReady", order);
     }
 
-    // 4. Notificar entrega (Mesa se libera en Admin)
-    public async Task NotifyOrderDelivered(string orderId)
+    public async Task NotifyOrderDelivered(OrderDto order)
     {
-        // Al recibir esto, el Admin ejecuta loadData() y la mesa vuelve a verde (Libre)
-        await _hubContext.Clients.All.SendAsync("orderdelivered", orderId);
+        await _hubContext.Clients.All
+            .SendAsync("orderdelivered", order.Id);
+
+        await _hubContext.Clients.All
+            .SendAsync("OrderDelivered", order);
     }
 
-    // 5. Notificar cancelación
-    public async Task NotifyOrderCancelled(string orderId)
+    public async Task NotifyOrderCancelled(OrderDto order)
     {
-        await _hubContext.Clients.All.SendAsync("ordercancelled", orderId);
+        await _hubContext.Clients.All
+            .SendAsync("ordercancelled", order.Id);
+
+        await _hubContext.Clients.All
+            .SendAsync("OrderCancelled", order);
+    }
+
+    // ----------------------------
+    // STOCK
+    // ----------------------------
+
+    public async Task NotifyStockUpdated(string productId, int newStock)
+    {
+        await _hubContext.Clients.Groups("waiter", "admin")
+            .SendAsync("stockupdated", productId, newStock);
+
+        await _hubContext.Clients.Groups("waiter", "admin")
+            .SendAsync("StockUpdated", productId, newStock);
+
+        if (newStock <= 0)
+        {
+            await _hubContext.Clients.Groups("waiter", "admin")
+                .SendAsync("productoutofstock", productId);
+        }
     }
 
     public async Task NotifyProductOutOfStock(string productId)
     {
-        await _hubContext.Clients.All.SendAsync("productoutofstock", productId);
+        await _hubContext.Clients.Groups("waiter", "admin")
+            .SendAsync("productoutofstock", productId);
     }
-    public async Task NotifyStockUpdated(string productId, int newStock)
-    {
-        // Notificamos a meseros para que su menú se actualice al instante
-        // y al admin para que su inventario esté al día.
-        await _hubContext.Clients.Groups("waiter", "admin").SendAsync("stockupdated", productId, newStock);
 
-        // Si el stock llega a 0, disparamos el evento de agotado por si acaso
-        if (newStock <= 0)
-        {
-            await _hubContext.Clients.Groups("waiter", "admin").SendAsync("productoutofstock", productId);
-        }
-    }
+    // ----------------------------
+    // MESAS
+    // ----------------------------
 
     public async Task NotifyTableStatusUpdated(int tableNumber, bool isOccupied)
     {
-        // Esto enviará el evento 'tablesupdated' que tu frontend ya está escuchando
-        await _hubContext.Clients.All.SendAsync("tablesupdated", new { tableNumber, isOccupied });
+        var payload = new { tableNumber, isOccupied };
+
+        await _hubContext.Clients.All.SendAsync("tablesupdated", payload);
+        await _hubContext.Clients.All.SendAsync("TableUpdated", payload);
     }
-
-
 }
