@@ -75,7 +75,7 @@ public class OrdersController : ControllerBase
         return Ok(order);
     }
 
-    [Authorize(Roles = "kitchen,admin")]
+    [Authorize(Roles = "waiter,admin")]
     [HttpPatch("{id}/finish")]
     public async Task<IActionResult> Finish(string id)
     {
@@ -83,6 +83,7 @@ public class OrdersController : ControllerBase
         await _orderService.SetFinished(id);
 
         // tablesupdated solo lo emite el controller (no está en el servicio)
+        await _hub.Clients.All.SendAsync("orderdelivered", id);
         await _hub.Clients.Group("admin").SendAsync("tablesupdated");
 
         return Ok(new { id, message = "Orden entregada con éxito" });
@@ -99,6 +100,8 @@ public class OrdersController : ControllerBase
         //    - Notificar cancelación → NotifyOrderCancelled (All)
         //    - tablesupdated → solo aquí
         await _orderService.CancelOrder(id);
+        //NOtificar a todos para limpiar pantallas y alertar meseros
+        await _hub.Clients.All.SendAsync("ordercancelled", id);
         await _hub.Clients.Group("admin").SendAsync("tablesupdated");
 
         return NoContent();

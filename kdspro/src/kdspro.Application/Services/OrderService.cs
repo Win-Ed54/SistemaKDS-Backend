@@ -41,17 +41,41 @@ public class OrderService : IOrderService
         var updatedStocks = new Dictionary<string, int>();
 
         // 2. DESCONTAR STOCK
+        // foreach (var item in dto.Items)
+        //{
+        //  await _productRepository.DeductStockAsync(item.ProductId, item.Quantity);
+        //var updated = await _productRepository.GetByIdAsync(item.ProductId);
+
+        //if (updated != null)
+        //{
+        //  updatedStocks[item.ProductId] = updated.Stock;
+        //await _notificationService.NotifyStockUpdated(updated.Id!, updated.Stock);
+        //}
+        //}
+        // 2. DESCONTAR STOCK (Implementación de Concurrencia Atómica)
         foreach (var item in dto.Items)
         {
-            await _productRepository.DeductStockAsync(item.ProductId, item.Quantity);
-            var updated = await _productRepository.GetByIdAsync(item.ProductId);
+            // Intentamos descontar directamente. El Repo devolverá false si el stock bajó 
+            // de la cantidad solicitada mientras el mesero procesaba la orden.
+            bool success = await _productRepository.DeductStockAsync(item.ProductId, item.Quantity);
 
+            if (!success)
+            {
+                // Si falla, notificamos a todos que este producto ya no tiene stock suficiente
+                await _notificationService.NotifyProductOutOfStock(item.ProductId);
+
+                throw new Exception($"¡Lo sentimos! Ya no hay stock suficiente para: {item.ProductName}.");
+            }
+
+            // Si tuvo éxito, obtenemos el valor real actualizado para sincronizar a los demás meseros
+            var updated = await _productRepository.GetByIdAsync(item.ProductId);
             if (updated != null)
             {
                 updatedStocks[item.ProductId] = updated.Stock;
                 await _notificationService.NotifyStockUpdated(updated.Id!, updated.Stock);
             }
         }
+
 
         // 3. CREAR ORDEN
         var order = new Order
