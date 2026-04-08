@@ -10,6 +10,7 @@ namespace kdspro.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize]
 public class ProductsController : ControllerBase
 {
     private readonly IProductRepository _productRepository;
@@ -21,6 +22,7 @@ public class ProductsController : ControllerBase
         _hub = hub;
     }
 
+    [Authorize(Roles = "waiter,admin,kitchen")]
     [HttpGet]
     public async Task<ActionResult<List<Product>>> GetAll()
     {
@@ -28,6 +30,7 @@ public class ProductsController : ControllerBase
         return Ok(products);
     }
 
+    [Authorize(Roles = "waiter,admin,kitchen")]
     [HttpGet("{id}")]
     public async Task<ActionResult<Product>> GetById(string id)
     {
@@ -84,6 +87,7 @@ public class ProductsController : ControllerBase
         return NoContent();
     }
 
+    [Authorize(Roles = "admin")]
     [HttpPatch("{id}/availability")]
     public async Task<IActionResult> UpdateAvailability(string id, [FromBody] bool isAvailable)
     {

@@ -90,6 +90,7 @@ public class OrderService : IOrderService
             {
                 ProductId = i.ProductId,
                 ProductName = i.ProductName,
+                UnitPrice = i.Price,
                 Quantity = i.Quantity,
                 Notes = i.Notes ?? ""
             }).ToList()
@@ -161,12 +162,25 @@ public class OrderService : IOrderService
             await _notificationService.NotifyOrderDelivered(order);
     }
 
+    public async Task MarkAsPaid(string orderId)
+    {
+        var order = await _orderRepository.GetByIdAsync(orderId);
+        if (order == null || order.Status != OrderStatus.Delivered || order.IsPaid) return;
+
+        await _orderRepository.MarkAsPaidAsync(orderId);
+
+        var updatedOrder = await GetOrderById(orderId);
+        if (updatedOrder != null)
+            await _notificationService.NotifyOrderPaid(updatedOrder);
+    }
+
     // ----------------------------
     // MESA (CAJA / ADMIN)
     // ----------------------------
 
     public async Task CloseTable(int tableNumber)
     {
+        await _orderRepository.MarkCleanupCompletedForTableAsync(tableNumber);
         await _tableRepository.SetOccupiedAsync(tableNumber, false);
         await _notificationService.NotifyTableStatusUpdated(tableNumber, false);
     }
@@ -190,6 +204,24 @@ public class OrderService : IOrderService
     public async Task<WaiterSummaryDto> GetWaiterSummary(string userId, string username)
     {
         var allOrders = await _orderRepository.GetOrdersByWaiterAsync(userId);
+        var pendingCleanupOrders = new List<OrderDto>();
+
+        foreach (var order in allOrders
+            .Where(o => o.Status == OrderStatus.Delivered && o.IsPaid && !o.IsCleanupCompleted)
+            .OrderByDescending(o => o.PaidAt ?? o.DeliveredAt ?? o.CreatedAt))
+        {
+            var cleanupReferenceDate = order.PaidAt ?? order.DeliveredAt ?? order.CreatedAt;
+            var hasNewerOrderForSameTable = await _orderRepository.HasNewerOrdersForTableAsync(
+                order.TableNumber,
+                cleanupReferenceDate,
+                order.Id!
+            );
+
+            if (!hasNewerOrderForSameTable)
+            {
+                pendingCleanupOrders.Add(MapToDto(order));
+            }
+        }
 
         return new WaiterSummaryDto
         {
@@ -200,7 +232,8 @@ public class OrderService : IOrderService
             MyActiveOrders = allOrders
                 .Where(o => o.Status != OrderStatus.Delivered && o.Status != OrderStatus.Cancelled)
                 .Select(MapToDto)
-                .ToList()
+                .ToList(),
+            PendingCleanupOrders = pendingCleanupOrders
         };
     }
 
@@ -280,11 +313,17 @@ public class OrderService : IOrderService
         CreatedAt = order.CreatedAt,
         StartedAt = order.StartedAt,
         ReadyAt = order.ReadyAt,
+        DeliveredAt = order.DeliveredAt,
+        IsPaid = order.IsPaid,
+        PaidAt = order.PaidAt,
+        IsCleanupCompleted = order.IsCleanupCompleted,
+        CleanupCompletedAt = order.CleanupCompletedAt,
         Items = order.Items?.Select(i => new OrderItemDto
         {
             ProductId = i.ProductId,
             ProductName = i.ProductName,
             Quantity = i.Quantity,
+            UnitPrice = i.UnitPrice,
             Notes = i.Notes,
             CurrentStock = 0
         }).ToList() ?? []

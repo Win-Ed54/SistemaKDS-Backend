@@ -10,6 +10,7 @@ public class OrdersHub : Hub
     private const string KitchenGroup = "kitchen";
     private const string WaiterGroup = "waiter";
     private const string AdminGroup = "admin";
+    private const string CashierGroup = "cashier";
 
     public override async Task OnConnectedAsync()
     {
@@ -26,6 +27,10 @@ public class OrdersHub : Hub
         else if (role == "admin")
         {
             await Groups.AddToGroupAsync(Context.ConnectionId, AdminGroup);
+        }
+        else if (role == "cashier")
+        {
+            await Groups.AddToGroupAsync(Context.ConnectionId, CashierGroup);
         }
 
         Console.WriteLine($"🟢 Cliente conectado: {Context.ConnectionId} | Rol: {role}");

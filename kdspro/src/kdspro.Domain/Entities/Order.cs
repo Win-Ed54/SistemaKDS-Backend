@@ -33,6 +33,14 @@ public class Order
     [BsonElement("FinishedAt")]
     public DateTime? DeliveredAt { get; set; }
 
+    public bool IsPaid { get; set; } = false;
+
+    public DateTime? PaidAt { get; set; }
+
+    public bool IsCleanupCompleted { get; set; } = false;
+
+    public DateTime? CleanupCompletedAt { get; set; }
+
     // --- IDENTIFICACIÓN ---
 
     public string CustomerName { get; set; } = "Cliente";

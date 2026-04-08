@@ -7,4 +7,5 @@ public class WaiterSummaryDto
     public int TotalCreated { get; set; }
     public int TotalDelivered { get; set; }
     public List<OrderDto> MyActiveOrders { get; set; } = new();
+    public List<OrderDto> PendingCleanupOrders { get; set; } = new();
 }

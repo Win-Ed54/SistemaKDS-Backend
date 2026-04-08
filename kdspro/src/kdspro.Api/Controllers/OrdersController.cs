@@ -1,9 +1,9 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using kdspro.Api.Hubs;
-using kdspro.Application.Interfaces;
 using kdspro.Application.DTOs;
-using Microsoft.AspNetCore.Authorization;
+using kdspro.Application.Interfaces;
 
 namespace kdspro.Api.Controllers;
 
@@ -27,18 +27,16 @@ public class OrdersController : ControllerBase
     {
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         var username = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value;
+
         try
         {
             var order = await _orderService.CreateOrder(dto, userId!, username!);
-            // ✅ Las notificaciones de nueva orden y stock las maneja
-            //    OrderService.CreateOrder → NotifyNewOrder + NotifyProductOutOfStock
-            //    Solo el stockupdated por waiter va aquí porque el servicio
-            //    no tiene acceso directo al grupo "waiter" en este momento
+
             foreach (var item in order.Items)
             {
-                await _hub.Clients.Group("waiter")
-                    .SendAsync("stockupdated", item.ProductId, item.CurrentStock);
+                await _hub.Clients.Group("waiter").SendAsync("stockupdated", item.ProductId, item.CurrentStock);
             }
+
             return Ok(order);
         }
         catch (Exception ex)
@@ -55,9 +53,7 @@ public class OrdersController : ControllerBase
         var order = await _orderService.GetOrderById(id);
         if (order == null) return NotFound();
 
-        // ✅ Solo notifica a kitchen — admin ya lo recibe en SetPreparing via servicio
         await _hub.Clients.Group("kitchen").SendAsync("orderpreparing", order);
-
         return Ok(order);
     }
 
@@ -69,9 +65,7 @@ public class OrdersController : ControllerBase
         var order = await _orderService.GetOrderById(id);
         if (order == null) return NotFound();
 
-        // ✅ Notifica a todos (mesero recibe alerta, cocina mueve tarjeta)
         await _hub.Clients.All.SendAsync("orderready", order);
-
         return Ok(order);
     }
 
@@ -79,44 +73,40 @@ public class OrdersController : ControllerBase
     [HttpPatch("{id}/finish")]
     public async Task<IActionResult> Finish(string id)
     {
-        // ✅ SetFinished ya maneja: liberar mesa + NotifyOrderDelivered
         await _orderService.SetFinished(id);
-
-        // tablesupdated solo lo emite el controller (no está en el servicio)
         await _hub.Clients.All.SendAsync("orderdelivered", id);
-        await _hub.Clients.Group("admin").SendAsync("tablesupdated");
 
-        return Ok(new { id, message = "Orden entregada con éxito" });
+        return Ok(new { id, message = "Orden entregada con exito" });
+    }
+
+    [Authorize(Roles = "admin,cashier")]
+    [HttpPatch("{id}/pay")]
+    public async Task<IActionResult> Pay(string id)
+    {
+        await _orderService.MarkAsPaid(id);
+        return Ok(new { id, message = "Orden cobrada con exito" });
     }
 
     [Authorize(Roles = "admin")]
     [HttpPatch("{id}/cancel")]
     public async Task<IActionResult> Cancel(string id)
     {
-        // ✅ CancelOrder ya maneja:
-        //    - Devolver stock → RestoreStockAsync
-        //    - Notificar stock → NotifyStockUpdated (waiter + admin)
-        //    - Liberar mesa → SetOccupiedAsync
-        //    - Notificar cancelación → NotifyOrderCancelled (All)
-        //    - tablesupdated → solo aquí
         await _orderService.CancelOrder(id);
-        //NOtificar a todos para limpiar pantallas y alertar meseros
         await _hub.Clients.All.SendAsync("ordercancelled", id);
         await _hub.Clients.Group("admin").SendAsync("tablesupdated");
 
         return NoContent();
     }
 
-    // --- GETTERS ---
     [Authorize(Roles = "kitchen,admin")]
     [HttpGet("active")]
-    public async Task<ActionResult<List<OrderDto>>> GetActiveOrders()
-        => Ok(await _orderService.GetActiveOrders());
+    public async Task<ActionResult<List<OrderDto>>> GetActiveOrders() =>
+        Ok(await _orderService.GetActiveOrders());
 
-    [Authorize(Roles = "admin")]
+    [Authorize(Roles = "admin,cashier")]
     [HttpGet("history")]
-    public async Task<ActionResult<List<OrderDto>>> GetHistory()
-        => Ok(await _orderService.GetHistory());
+    public async Task<ActionResult<List<OrderDto>>> GetHistory() =>
+        Ok(await _orderService.GetHistory());
 
     [Authorize(Roles = "admin")]
     [HttpGet("top-products")]
@@ -130,9 +120,9 @@ public class OrdersController : ControllerBase
             .GroupBy(i => new { i.ProductId, i.ProductName })
             .Select(g => new
             {
-                productId   = g.Key.ProductId,
+                productId = g.Key.ProductId,
                 productName = g.Key.ProductName,
-                totalSold   = g.Sum(i => i.Quantity),
+                totalSold = g.Sum(i => i.Quantity),
                 totalOrders = g.Count()
             })
             .OrderByDescending(x => x.totalSold)
@@ -147,13 +137,12 @@ public class OrdersController : ControllerBase
     public async Task<IActionResult> GetMyOrders()
     {
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-
-        if (string.IsNullOrEmpty(userId))
-            return Unauthorized();
+        if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
         var orders = await _orderService.GetMyOrders(userId);
         return Ok(orders);
     }
+
     [Authorize(Roles = "waiter,admin")]
     [HttpGet("waiter/{waiterName}/today")]
     public async Task<ActionResult<IEnumerable<OrderDto>>> GetWaiterOrdersToday(string waiterName)
@@ -169,16 +158,13 @@ public class OrdersController : ControllerBase
         }
     }
 
-    [Authorize(Roles = "admin")]
+    [Authorize(Roles = "waiter,admin")]
     [HttpPatch("table/{tableNumber}/close")]
     public async Task<IActionResult> CloseTable(int tableNumber)
     {
         try
         {
             await _orderService.CloseTable(tableNumber);
-
-            // 📢 Notificamos a TODOS (Meseros y Admin) que la mesa está libre.
-            // Usamos el evento 'tablesupdated' que ya escuchas en el frontend.
             await _hub.Clients.All.SendAsync("tablesupdated");
 
             return Ok(new { message = $"Mesa {tableNumber} liberada correctamente." });
@@ -188,6 +174,4 @@ public class OrdersController : ControllerBase
             return BadRequest(new { error = ex.Message });
         }
     }
-
-
 }

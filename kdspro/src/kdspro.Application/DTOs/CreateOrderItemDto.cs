@@ -8,6 +8,8 @@ public class CreateOrderItemDto
 
     public int Quantity { get; set; }
 
+    public decimal Price { get; set; }
+
     public List<string>? Modifiers { get; set; }
 
     public string? Notes { get; set; }

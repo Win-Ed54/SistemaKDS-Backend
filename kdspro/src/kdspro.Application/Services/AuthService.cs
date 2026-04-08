@@ -89,7 +89,7 @@ public class AuthService
         if (stored == null || !stored.IsActive) return null;
 
         // Buscar usuario por su Id guardado en el refresh token
-        var user = await _users.GetByUsername(stored.UserId);
+        var user = await _users.GetById(stored.UserId);
         if (user == null) return null;
 
         // Revocar token viejo

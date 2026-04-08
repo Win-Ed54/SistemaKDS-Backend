@@ -14,83 +14,57 @@ public class OrderNotificationService : IOrderNotificationService
         _hubContext = hubContext;
     }
 
-    // ----------------------------
-    // ORDENES
-    // ----------------------------
-
     public async Task NotifyNewOrder(OrderDto order)
     {
-        await _hubContext.Clients.Groups("kitchen", "admin")
-            .SendAsync("receiveorder", order);
-
-        await _hubContext.Clients.Groups("kitchen", "admin")
-            .SendAsync("OrderCreated", order);
+        await _hubContext.Clients.Groups("kitchen", "admin").SendAsync("receiveorder", order);
+        await _hubContext.Clients.Groups("kitchen", "admin").SendAsync("OrderCreated", order);
     }
 
     public async Task NotifyOrderPreparing(OrderDto order)
     {
-        await _hubContext.Clients.Group("admin")
-            .SendAsync("orderpreparing", order);
-
-        await _hubContext.Clients.Group("admin")
-            .SendAsync("OrderPreparing", order);
+        await _hubContext.Clients.Group("admin").SendAsync("orderpreparing", order);
+        await _hubContext.Clients.Group("admin").SendAsync("OrderPreparing", order);
     }
 
     public async Task NotifyOrderReady(OrderDto order)
     {
-        await _hubContext.Clients.Groups("waiter", "admin")
-            .SendAsync("orderready", order);
-
-        await _hubContext.Clients.Groups("waiter", "admin")
-            .SendAsync("OrderReady", order);
+        await _hubContext.Clients.Groups("waiter", "admin").SendAsync("orderready", order);
+        await _hubContext.Clients.Groups("waiter", "admin").SendAsync("OrderReady", order);
     }
 
     public async Task NotifyOrderDelivered(OrderDto order)
     {
-        await _hubContext.Clients.All
-            .SendAsync("orderdelivered", order.Id);
+        await _hubContext.Clients.All.SendAsync("orderdelivered", order.Id);
+        await _hubContext.Clients.All.SendAsync("OrderDelivered", order);
+    }
 
-        await _hubContext.Clients.All
-            .SendAsync("OrderDelivered", order);
+    public async Task NotifyOrderPaid(OrderDto order)
+    {
+        await _hubContext.Clients.Groups("waiter", "admin", "cashier").SendAsync("orderpaid", order);
+        await _hubContext.Clients.Groups("waiter", "admin", "cashier").SendAsync("OrderPaid", order);
     }
 
     public async Task NotifyOrderCancelled(OrderDto order)
     {
-        await _hubContext.Clients.All
-            .SendAsync("ordercancelled", order.Id);
-
-        await _hubContext.Clients.All
-            .SendAsync("OrderCancelled", order);
+        await _hubContext.Clients.All.SendAsync("ordercancelled", order.Id);
+        await _hubContext.Clients.All.SendAsync("OrderCancelled", order);
     }
-
-    // ----------------------------
-    // STOCK
-    // ----------------------------
 
     public async Task NotifyStockUpdated(string productId, int newStock)
     {
-        await _hubContext.Clients.Groups("waiter", "admin")
-            .SendAsync("stockupdated", productId, newStock);
-
-        await _hubContext.Clients.Groups("waiter", "admin")
-            .SendAsync("StockUpdated", productId, newStock);
+        await _hubContext.Clients.Groups("waiter", "admin").SendAsync("stockupdated", productId, newStock);
+        await _hubContext.Clients.Groups("waiter", "admin").SendAsync("StockUpdated", productId, newStock);
 
         if (newStock <= 0)
         {
-            await _hubContext.Clients.Groups("waiter", "admin")
-                .SendAsync("productoutofstock", productId);
+            await _hubContext.Clients.Groups("waiter", "admin").SendAsync("productoutofstock", productId);
         }
     }
 
     public async Task NotifyProductOutOfStock(string productId)
     {
-        await _hubContext.Clients.Groups("waiter", "admin")
-            .SendAsync("productoutofstock", productId);
+        await _hubContext.Clients.Groups("waiter", "admin").SendAsync("productoutofstock", productId);
     }
-
-    // ----------------------------
-    // MESAS
-    // ----------------------------
 
     public async Task NotifyTableStatusUpdated(int tableNumber, bool isOccupied)
     {

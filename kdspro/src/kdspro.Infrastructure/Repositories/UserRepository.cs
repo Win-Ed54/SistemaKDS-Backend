@@ -21,6 +21,15 @@ public class UserRepository : IUserRepository
             .FirstOrDefaultAsync();
     }
 
+    public async Task<User?> GetById(string id)
+    {
+        if (string.IsNullOrWhiteSpace(id)) return null;
+
+        return await _users
+            .Find(u => u.Id == id)
+            .FirstOrDefaultAsync();
+    }
+
     public async Task Create(User user)
     {
         await _users.InsertOneAsync(user);

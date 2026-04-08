@@ -35,8 +35,13 @@ namespace kdspro.Domain.Interfaces
 
         Task<bool> HasActiveOrdersForTableAsync(int tableNumber, string excludeOrderId);
 
+        Task<bool> HasNewerOrdersForTableAsync(int tableNumber, DateTime createdAfter, string excludeOrderId);
+
         Task<List<Order>> GetOrdersByWaiterAsync(string waiterId);
-        
+
+        Task MarkAsPaidAsync(string id, CancellationToken ct = default);
+
+        Task MarkCleanupCompletedForTableAsync(int tableNumber, CancellationToken ct = default);
        
     }
 }

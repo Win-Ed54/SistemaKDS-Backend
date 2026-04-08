@@ -58,14 +58,11 @@ public static class DbSeeder
         var count = await users.CountDocumentsAsync(_ => true);
         if (count > 0) return;
 
-        // CREDENCIALES DE ACCESO:
-        // admin   → Admin_KDS_2026!
-        // kitchen → kitchen2026
-        // waiter  → waiter2026
         await users.InsertManyAsync(new List<User>
         {
-            new() { Username = "admin",    PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin_KDS_2026!"), Role = "admin" },
+        new() { Username = "admin",    PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin_KDS_2026!"), Role = "admin" },
         new() { Username = "gerente",  PasswordHash = BCrypt.Net.BCrypt.HashPassword("Gerente2026!"),    Role = "admin" },
+        new() { Username = "caja1",  PasswordHash = BCrypt.Net.BCrypt.HashPassword("Caja2026!"),    Role = "cashier" },
 
         // COCINA (KITCHEN)
         new() { Username = "kitchen1", PasswordHash = BCrypt.Net.BCrypt.HashPassword("chef2026"),       Role = "kitchen" },

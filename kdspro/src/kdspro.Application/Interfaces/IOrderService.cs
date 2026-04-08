@@ -19,6 +19,7 @@ public interface IOrderService
     Task SetPreparing(string orderId);
     Task SetReady(string orderId);
     Task SetFinished(string orderId);
+    Task MarkAsPaid(string orderId);
     Task CancelOrder(string orderId);
     
     // Control de Mesas

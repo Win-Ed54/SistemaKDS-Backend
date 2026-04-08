@@ -111,11 +111,54 @@ public class OrderRepository : GenericRepository<Order>, IOrderRepository
 
 
     }
+
+    public async Task<bool> HasNewerOrdersForTableAsync(int tableNumber, DateTime createdAfter, string excludeOrderId)
+    {
+        var filter = Builders<Order>.Filter.And(
+            Builders<Order>.Filter.Eq(o => o.TableNumber, tableNumber),
+            Builders<Order>.Filter.Ne(o => o.Id, excludeOrderId),
+            Builders<Order>.Filter.Gt(o => o.CreatedAt, createdAfter)
+        );
+
+        return await _collection.Find(filter).AnyAsync();
+    }
+
     public async Task<List<Order>> GetOrdersByWaiterAsync(string waiterId)
     {
         return await _collection
-            .Find(o => o.WaiterId == waiterId && o.Status != OrderStatus.Delivered)
+            .Find(o => o.WaiterId == waiterId || o.WaiterName == waiterId)
             .ToListAsync();
+    }
+
+    public async Task MarkAsPaidAsync(string id, CancellationToken ct = default)
+    {
+        var filter = Builders<Order>.Filter.Eq("_id", new ObjectId(id));
+        var update = Builders<Order>.Update
+            .Set(o => o.IsPaid, true)
+            .Set(o => o.PaidAt, DateTime.UtcNow);
+
+        await _collection.UpdateOneAsync(filter, update, cancellationToken: ct);
+    }
+
+    public async Task MarkCleanupCompletedForTableAsync(int tableNumber, CancellationToken ct = default)
+    {
+        var cleanupPendingFilter = Builders<Order>.Filter.Or(
+            Builders<Order>.Filter.Eq(o => o.IsCleanupCompleted, false),
+            Builders<Order>.Filter.Exists(nameof(Order.IsCleanupCompleted), false)
+        );
+
+        var filter = Builders<Order>.Filter.And(
+            Builders<Order>.Filter.Eq(o => o.TableNumber, tableNumber),
+            Builders<Order>.Filter.Eq(o => o.Status, OrderStatus.Delivered),
+            Builders<Order>.Filter.Eq(o => o.IsPaid, true),
+            cleanupPendingFilter
+        );
+
+        var update = Builders<Order>.Update
+            .Set(o => o.IsCleanupCompleted, true)
+            .Set(o => o.CleanupCompletedAt, DateTime.UtcNow);
+
+        await _collection.UpdateManyAsync(filter, update, cancellationToken: ct);
     }
 
 }

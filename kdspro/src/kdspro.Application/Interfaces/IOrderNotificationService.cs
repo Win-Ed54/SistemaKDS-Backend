@@ -16,6 +16,8 @@ public interface IOrderNotificationService
 
     Task NotifyOrderDelivered(OrderDto order);
 
+    Task NotifyOrderPaid(OrderDto order);
+
     Task NotifyOrderCancelled(OrderDto order);
 
     // ----------------------------

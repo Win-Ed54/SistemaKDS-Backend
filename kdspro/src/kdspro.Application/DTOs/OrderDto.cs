@@ -13,11 +13,11 @@ public class OrderDto
     public OrderStatus Status { get; set; }
     public List<OrderItemDto> Items { get; set; } = new();
     public DateTime CreatedAt { get; set; }
-
-    // --- NUEVOS CAMPOS PARA MÉTRICAS DE ADMIN ---
-    // Fecha en que el cocinero presionó "PREPARAR"
-    public DateTime? StartedAt { get; set; } 
-
-    // Fecha en que el cocinero presionó "LISTO"
-    public DateTime? ReadyAt { get; set; } 
+    public DateTime? StartedAt { get; set; }
+    public DateTime? ReadyAt { get; set; }
+    public DateTime? DeliveredAt { get; set; }
+    public bool IsPaid { get; set; }
+    public DateTime? PaidAt { get; set; }
+    public bool IsCleanupCompleted { get; set; }
+    public DateTime? CleanupCompletedAt { get; set; }
 }
