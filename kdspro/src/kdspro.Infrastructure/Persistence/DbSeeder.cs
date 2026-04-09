@@ -47,7 +47,16 @@ public static class DbSeeder
             new() { Number = 3, Name = "Mesa 3", Capacity = 4, IsActive = true },
             new() { Number = 4, Name = "Mesa 4", Capacity = 6, IsActive = true },
             new() { Number = 5, Name = "Mesa 5", Capacity = 2, IsActive = true },
-            new() { Number = 6, Name = "Mesa 6", Capacity = 8, IsActive = true }
+            new() { Number = 6, Name = "Mesa 6", Capacity = 8, IsActive = true },
+            new() { Number = 7, Name = "Mesa 7", Capacity = 8, IsActive = true },
+            new() { Number = 8, Name = "Mesa 8", Capacity = 8, IsActive = true },
+            new() { Number = 9, Name = "Mesa 9", Capacity = 8, IsActive = true },
+            new() { Number = 10, Name = "Mesa 10", Capacity = 8, IsActive = true },
+            new() { Number = 11, Name = "Mesa 11", Capacity = 8, IsActive = true },
+            new() { Number = 12, Name = "Mesa 12", Capacity = 8, IsActive = true },
+            new() { Number = 13, Name = "Mesa 13", Capacity = 8, IsActive = true },
+            new() { Number = 14, Name = "Mesa 14", Capacity = 8, IsActive = true },
+            new() { Number = 15, Name = "Mesa 15", Capacity = 8, IsActive = true }
         };
 
         await collection.InsertManyAsync(tables);
@@ -71,7 +80,7 @@ public static class DbSeeder
         // MESEROS (WAITER)
         new() { Username = "waiter1",  PasswordHash = BCrypt.Net.BCrypt.HashPassword("waiter2026"),     Role = "waiter" },
         new() { Username = "Edwin",   PasswordHash = BCrypt.Net.BCrypt.HashPassword("Edwin2026"),     Role = "waiter" },
-        new() { Username = "Rene",      PasswordHash = BCrypt.Net.BCrypt.HashPassword("Rene2026"),        Role = "waiter" }
+        new() { Username = "waiter2",      PasswordHash = BCrypt.Net.BCrypt.HashPassword("waiter22026"),        Role = "waiter" }
         });
     }
 }
