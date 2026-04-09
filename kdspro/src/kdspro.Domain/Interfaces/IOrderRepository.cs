@@ -42,6 +42,8 @@ namespace kdspro.Domain.Interfaces
         Task MarkAsPaidAsync(string id, CancellationToken ct = default);
 
         Task MarkCleanupCompletedForTableAsync(int tableNumber, CancellationToken ct = default);
+
+        Task<bool> HasPendingPaymentForTableAsync(int tableNumber, CancellationToken ct = default);
        
     }
 }

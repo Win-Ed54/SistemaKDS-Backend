@@ -22,8 +22,8 @@ public class OrderNotificationService : IOrderNotificationService
 
     public async Task NotifyOrderPreparing(OrderDto order)
     {
-        await _hubContext.Clients.Group("admin").SendAsync("orderpreparing", order);
-        await _hubContext.Clients.Group("admin").SendAsync("OrderPreparing", order);
+        await _hubContext.Clients.Groups("kitchen", "admin").SendAsync("orderpreparing", order);
+        await _hubContext.Clients.Groups("kitchen", "admin").SendAsync("OrderPreparing", order);
     }
 
     public async Task NotifyOrderReady(OrderDto order)

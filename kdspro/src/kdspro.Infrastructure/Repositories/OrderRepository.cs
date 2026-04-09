@@ -161,4 +161,15 @@ public class OrderRepository : GenericRepository<Order>, IOrderRepository
         await _collection.UpdateManyAsync(filter, update, cancellationToken: ct);
     }
 
+    public async Task<bool> HasPendingPaymentForTableAsync(int tableNumber, CancellationToken ct = default)
+    {
+        var filter = Builders<Order>.Filter.And(
+            Builders<Order>.Filter.Eq(o => o.TableNumber, tableNumber),
+            Builders<Order>.Filter.Eq(o => o.Status, OrderStatus.Delivered),
+            Builders<Order>.Filter.Eq(o => o.IsPaid, false)
+        );
+
+        return await _collection.Find(filter).AnyAsync(ct);
+    }
+
 }

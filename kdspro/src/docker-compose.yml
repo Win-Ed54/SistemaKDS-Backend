@@ -38,6 +38,22 @@ services:
     networks:
       - kds-network
 
+  kds-frontend:
+    build:
+      context: ../../../Sistema-KDS-Kitchen-Display-System-para-restaurantes---Frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: /api
+        VITE_HUB_URL: /ordersHub
+    container_name: kds-frontend
+    restart: always
+    ports:
+      - "5173:80"
+    depends_on:
+      - kds-api
+    networks:
+      - kds-network
+
 volumes:
   mongo_data:
 

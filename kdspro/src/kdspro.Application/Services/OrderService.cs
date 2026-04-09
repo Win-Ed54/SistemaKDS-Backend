@@ -99,8 +99,11 @@ public class OrderService : IOrderService
         await _orderRepository.CreateAsync(order);
 
         // 4. ACTUALIZAR MESA + NOTIFICAR (ORDEN IMPORTANTE)
-        await _tableRepository.SetOccupiedAsync(dto.TableNumber, true);
-        await _notificationService.NotifyTableStatusUpdated(dto.TableNumber, true);
+        if (dto.TableNumber > 0)
+        {
+            await _tableRepository.SetOccupiedAsync(dto.TableNumber, true);
+            await _notificationService.NotifyTableStatusUpdated(dto.TableNumber, true);
+        }
 
         // 5. NOTIFICAR ORDEN
         
@@ -165,7 +168,14 @@ public class OrderService : IOrderService
     public async Task MarkAsPaid(string orderId)
     {
         var order = await _orderRepository.GetByIdAsync(orderId);
-        if (order == null || order.Status != OrderStatus.Delivered || order.IsPaid) return;
+        if (order == null)
+            throw new InvalidOperationException("La orden no existe.");
+
+        if (order.Status != OrderStatus.Delivered)
+            throw new InvalidOperationException("Solo se pueden cobrar ordenes entregadas.");
+
+        if (order.IsPaid)
+            throw new InvalidOperationException("La orden ya fue cobrada.");
 
         await _orderRepository.MarkAsPaidAsync(orderId);
 
@@ -180,6 +190,9 @@ public class OrderService : IOrderService
 
     public async Task CloseTable(int tableNumber)
     {
+        if (await _orderRepository.HasPendingPaymentForTableAsync(tableNumber))
+            throw new InvalidOperationException($"La mesa {tableNumber} tiene cobros pendientes.");
+
         await _orderRepository.MarkCleanupCompletedForTableAsync(tableNumber);
         await _tableRepository.SetOccupiedAsync(tableNumber, false);
         await _notificationService.NotifyTableStatusUpdated(tableNumber, false);
@@ -208,6 +221,7 @@ public class OrderService : IOrderService
 
         foreach (var order in allOrders
             .Where(o => o.Status == OrderStatus.Delivered && o.IsPaid && !o.IsCleanupCompleted)
+            .Where(o => o.TableNumber > 0)
             .OrderByDescending(o => o.PaidAt ?? o.DeliveredAt ?? o.CreatedAt))
         {
             var cleanupReferenceDate = order.PaidAt ?? order.DeliveredAt ?? order.CreatedAt;

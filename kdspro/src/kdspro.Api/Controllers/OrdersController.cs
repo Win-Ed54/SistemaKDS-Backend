@@ -1,7 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.SignalR;
-using kdspro.Api.Hubs;
 using kdspro.Application.DTOs;
 using kdspro.Application.Interfaces;
 
@@ -13,12 +11,10 @@ namespace kdspro.Api.Controllers;
 public class OrdersController : ControllerBase
 {
     private readonly IOrderService _orderService;
-    private readonly IHubContext<OrdersHub> _hub;
 
-    public OrdersController(IOrderService orderService, IHubContext<OrdersHub> hub)
+    public OrdersController(IOrderService orderService)
     {
         _orderService = orderService;
-        _hub = hub;
     }
 
     [Authorize(Roles = "waiter,admin")]
@@ -31,11 +27,6 @@ public class OrdersController : ControllerBase
         try
         {
             var order = await _orderService.CreateOrder(dto, userId!, username!);
-
-            foreach (var item in order.Items)
-            {
-                await _hub.Clients.Group("waiter").SendAsync("stockupdated", item.ProductId, item.CurrentStock);
-            }
 
             return Ok(order);
         }
@@ -53,7 +44,6 @@ public class OrdersController : ControllerBase
         var order = await _orderService.GetOrderById(id);
         if (order == null) return NotFound();
 
-        await _hub.Clients.Group("kitchen").SendAsync("orderpreparing", order);
         return Ok(order);
     }
 
@@ -64,8 +54,6 @@ public class OrdersController : ControllerBase
         await _orderService.SetReady(id);
         var order = await _orderService.GetOrderById(id);
         if (order == null) return NotFound();
-
-        await _hub.Clients.All.SendAsync("orderready", order);
         return Ok(order);
     }
 
@@ -74,8 +62,6 @@ public class OrdersController : ControllerBase
     public async Task<IActionResult> Finish(string id)
     {
         await _orderService.SetFinished(id);
-        await _hub.Clients.All.SendAsync("orderdelivered", id);
-
         return Ok(new { id, message = "Orden entregada con exito" });
     }
 
@@ -83,8 +69,15 @@ public class OrdersController : ControllerBase
     [HttpPatch("{id}/pay")]
     public async Task<IActionResult> Pay(string id)
     {
-        await _orderService.MarkAsPaid(id);
-        return Ok(new { id, message = "Orden cobrada con exito" });
+        try
+        {
+            await _orderService.MarkAsPaid(id);
+            return Ok(new { id, message = "Orden cobrada con exito" });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
     }
 
     [Authorize(Roles = "admin")]
@@ -92,9 +85,6 @@ public class OrdersController : ControllerBase
     public async Task<IActionResult> Cancel(string id)
     {
         await _orderService.CancelOrder(id);
-        await _hub.Clients.All.SendAsync("ordercancelled", id);
-        await _hub.Clients.Group("admin").SendAsync("tablesupdated");
-
         return NoContent();
     }
 
@@ -165,8 +155,6 @@ public class OrdersController : ControllerBase
         try
         {
             await _orderService.CloseTable(tableNumber);
-            await _hub.Clients.All.SendAsync("tablesupdated");
-
             return Ok(new { message = $"Mesa {tableNumber} liberada correctamente." });
         }
         catch (Exception ex)
