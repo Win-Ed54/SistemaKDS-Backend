@@ -58,7 +58,7 @@ public class ProductsController : ControllerBase
         var existing = await _productRepository.GetByIdAsync(id);
         if (existing == null) return NotFound();
 
-        if (string.IsNullOrEmpty(product.ImageUrl) || product.ImageUrl == "default.png") 
+        if (string.IsNullOrEmpty(product.ImageUrl) || product.ImageUrl == "default.webp") 
     {
         product.ImageUrl = existing.ImageUrl;
     }

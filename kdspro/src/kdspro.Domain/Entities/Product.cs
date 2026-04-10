@@ -53,6 +53,6 @@ public class Product
   /// </summary>
   public string Category { get; set; } = string.Empty;
 
-  public string ImageUrl { get; set; } = "default.png";
+  public string ImageUrl { get; set; } = "default.webp";
 
 }
