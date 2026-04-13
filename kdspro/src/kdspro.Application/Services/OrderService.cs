@@ -40,19 +40,6 @@ public class OrderService : IOrderService
 
         var updatedStocks = new Dictionary<string, int>();
 
-        // 2. DESCONTAR STOCK
-        // foreach (var item in dto.Items)
-        //{
-        //  await _productRepository.DeductStockAsync(item.ProductId, item.Quantity);
-        //var updated = await _productRepository.GetByIdAsync(item.ProductId);
-
-        //if (updated != null)
-        //{
-        //  updatedStocks[item.ProductId] = updated.Stock;
-        //await _notificationService.NotifyStockUpdated(updated.Id!, updated.Stock);
-        //}
-        //}
-        // 2. DESCONTAR STOCK (Implementación de Concurrencia Atómica)
         foreach (var item in dto.Items)
         {
             // Intentamos descontar directamente. El Repo devolverá false si el stock bajó 

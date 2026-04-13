@@ -102,13 +102,7 @@ builder.Services.AddCors(options =>
         }
     });
 });
-// --- DEPENDENCIAS ---
-//builder.Services.AddSingleton<IMongoClient>(sp => new MongoClient("mongodb://mongodb:27017"));
 
-//builder.Services.AddScoped<IMongoDatabase>(sp => {
-  //  var client = sp.GetRequiredService<IMongoClient>();
-    //return client.GetDatabase("kdspro");
-//});
 //--conexion Temporal
 var connectionString = builder.Configuration["MongoDbSettings:ConnectionString"] 
     ?? "mongodb://localhost:27017";

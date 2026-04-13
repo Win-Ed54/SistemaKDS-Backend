@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.SignalR;
 using System.Security.Claims;
 
-namespace kdspro.Api.Services // O el namespace que prefieras
+namespace kdspro.Api.Services
 {
     public class NameIdentifierUserIdProvider : IUserIdProvider
     {

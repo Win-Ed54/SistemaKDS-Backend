@@ -45,7 +45,7 @@ public class ProductsController : ControllerBase
     {
         await _productRepository.CreateAsync(product);
 
-        // ✅ Notificar a meseros que el catálogo cambió
+        //Notificar a meseros que el catálogo cambió
         await _hub.Clients.Group("waiter").SendAsync("productupdated");
 
         return CreatedAtAction(nameof(GetById), new { id = product.Id }, product);
@@ -62,11 +62,11 @@ public class ProductsController : ControllerBase
     {
         product.ImageUrl = existing.ImageUrl;
     }
-        // ✅ Preservar el Id para que MongoDB no lo pierda
+        //Preservar el Id para que MongoDB no lo pierda
         product.Id = id;
         await _productRepository.UpdateAsync(id, product);
 
-        // ✅ Notificar a meseros que el catálogo cambió
+        //Notificar a meseros que el catálogo cambió
         await _hub.Clients.All.SendAsync("productupdated");
 
         return NoContent();
@@ -81,7 +81,7 @@ public class ProductsController : ControllerBase
 
         await _productRepository.DeleteAsync(id);
 
-        // ✅ Notificar a meseros que el catálogo cambió
+        //Notificar a meseros que el catálogo cambió
         await _hub.Clients.Group("waiter").SendAsync("productupdated");
 
         return NoContent();

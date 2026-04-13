@@ -79,7 +79,6 @@ public class AuthService
         return token.Token;
     }
 
-    // ✅ UN SOLO método RefreshToken
     public async Task<RefreshResult?> RefreshToken(string refreshToken)
     {
         var stored = await _refreshTokens
