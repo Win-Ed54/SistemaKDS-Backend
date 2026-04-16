@@ -8,26 +8,50 @@ namespace kdspro.Application.Services;
 
 public class OrderService : IOrderService
 {
+    private const decimal TaxRate = 0.13m;
     private readonly IOrderRepository _orderRepository;
     private readonly IProductRepository _productRepository;
     private readonly ITableRepository _tableRepository;
     private readonly IOrderNotificationService _notificationService;
+    private readonly IKdsSettingsService _settingsService;
 
     public OrderService(
         IOrderRepository orderRepository,
         IProductRepository productRepository,
         ITableRepository tableRepository,
-        IOrderNotificationService notificationService)
+        IOrderNotificationService notificationService,
+        IKdsSettingsService settingsService)
     {
         _orderRepository = orderRepository;
         _productRepository = productRepository;
         _tableRepository = tableRepository;
         _notificationService = notificationService;
+        _settingsService = settingsService;
     }
 
     public async Task<OrderDto> CreateOrder(CreateOrderDto dto, string userId, string username)
     {
-        // 1. VALIDACIÓN PREVENTIVA
+        var settings = await _settingsService.GetAsync();
+
+        if (dto.Items == null || dto.Items.Count == 0)
+            throw new InvalidOperationException("La orden debe incluir al menos un producto.");
+
+        if (dto.Items.Count > settings.MaxDistinctItems)
+            throw new InvalidOperationException($"Maximo {settings.MaxDistinctItems} productos distintos por orden.");
+
+        var totalUnits = dto.Items.Sum(item => item.Quantity);
+        if (totalUnits > settings.MaxTotalUnits)
+            throw new InvalidOperationException($"Maximo {settings.MaxTotalUnits} unidades totales por orden.");
+
+        var invalidItem = dto.Items.FirstOrDefault(item =>
+            string.IsNullOrWhiteSpace(item.ProductId) ||
+            item.Quantity < 1 ||
+            item.Quantity > settings.MaxQuantityPerProduct
+        );
+
+        if (invalidItem != null)
+            throw new InvalidOperationException($"{invalidItem.ProductName}: maximo {settings.MaxQuantityPerProduct} unidades por producto.");
+
         foreach (var item in dto.Items)
         {
             var product = await _productRepository.GetByIdAsync(item.ProductId);
@@ -42,19 +66,14 @@ public class OrderService : IOrderService
 
         foreach (var item in dto.Items)
         {
-            // Intentamos descontar directamente. El Repo devolverá false si el stock bajó 
-            // de la cantidad solicitada mientras el mesero procesaba la orden.
-            bool success = await _productRepository.DeductStockAsync(item.ProductId, item.Quantity);
+            var success = await _productRepository.DeductStockAsync(item.ProductId, item.Quantity);
 
             if (!success)
             {
-                // Si falla, notificamos a todos que este producto ya no tiene stock suficiente
                 await _notificationService.NotifyProductOutOfStock(item.ProductId);
-
-                throw new Exception($"¡Lo sentimos! Ya no hay stock suficiente para: {item.ProductName}.");
+                throw new Exception($"Lo sentimos. Ya no hay stock suficiente para: {item.ProductName}.");
             }
 
-            // Si tuvo éxito, obtenemos el valor real actualizado para sincronizar a los demás meseros
             var updated = await _productRepository.GetByIdAsync(item.ProductId);
             if (updated != null)
             {
@@ -63,14 +82,23 @@ public class OrderService : IOrderService
             }
         }
 
+        var grossTotal = dto.Items.Sum(i => i.Price * i.Quantity);
+        var taxableAmount = grossTotal <= 0
+            ? 0
+            : Math.Round(grossTotal / (1 + TaxRate), 2, MidpointRounding.AwayFromZero);
+        var taxAmount = Math.Round(grossTotal - taxableAmount, 2, MidpointRounding.AwayFromZero);
+        var correlativeNumber = await _orderRepository.GetNextCorrelativeNumberAsync();
 
-        // 3. CREAR ORDEN
         var order = new Order
         {
+            CorrelativeNumber = correlativeNumber,
+            CorrelativeCode = $"ORD-{correlativeNumber:000000}",
             TableNumber = dto.TableNumber,
             CustomerName = dto.CustomerName,
             WaiterId = userId,
             WaiterName = username,
+            TaxableAmount = taxableAmount,
+            TaxAmount = taxAmount,
             Status = OrderStatus.Pending,
             CreatedAt = DateTime.UtcNow,
             Items = dto.Items.Select(i => new OrderItem
@@ -85,34 +113,28 @@ public class OrderService : IOrderService
 
         await _orderRepository.CreateAsync(order);
 
-        // 4. ACTUALIZAR MESA + NOTIFICAR (ORDEN IMPORTANTE)
         if (dto.TableNumber > 0)
         {
             await _tableRepository.SetOccupiedAsync(dto.TableNumber, true);
-            await _notificationService.NotifyTableStatusUpdated(dto.TableNumber, true);
+            var updatedTable = await _tableRepository.GetByNumberAsync(dto.TableNumber);
+            if (updatedTable != null)
+                await _notificationService.NotifyTableStatusUpdated(updatedTable);
         }
 
-        // 5. NOTIFICAR ORDEN
-        
         await _notificationService.NotifyNewOrder(MapToDto(order));
 
-        // 6. RESPUESTA
         var resultDto = MapToDto(order);
 
         foreach (var itemDto in resultDto.Items)
         {
-            if (updatedStocks.TryGetValue(itemDto.ProductId, out int stock))
+            if (updatedStocks.TryGetValue(itemDto.ProductId, out var stock))
                 itemDto.CurrentStock = stock;
         }
 
         return resultDto;
     }
 
-    // ----------------------------
-    // ESTADOS DE ORDEN
-    // ----------------------------
-
-    public async Task SetPreparing(string orderId)
+    public async Task SetPreparing(string orderId, string preparedByName)
     {
         await _orderRepository.UpdateStatusWithTimeAsync(
             orderId,
@@ -120,6 +142,7 @@ public class OrderService : IOrderService
             DateTime.UtcNow,
             null
         );
+        await _orderRepository.SetPreparedByAsync(orderId, preparedByName);
 
         var order = await GetOrderById(orderId);
 
@@ -127,7 +150,7 @@ public class OrderService : IOrderService
             await _notificationService.NotifyOrderPreparing(order);
     }
 
-    public async Task SetReady(string orderId)
+    public async Task SetReady(string orderId, string preparedByName)
     {
         await _orderRepository.UpdateStatusWithTimeAsync(
             orderId,
@@ -135,6 +158,7 @@ public class OrderService : IOrderService
             null,
             DateTime.UtcNow
         );
+        await _orderRepository.SetPreparedByAsync(orderId, preparedByName);
 
         var order = await GetOrderById(orderId);
 
@@ -152,7 +176,7 @@ public class OrderService : IOrderService
             await _notificationService.NotifyOrderDelivered(order);
     }
 
-    public async Task MarkAsPaid(string orderId)
+    public async Task MarkAsPaid(string orderId, string paidByName, MarkOrderPaidDto dto)
     {
         var order = await _orderRepository.GetByIdAsync(orderId);
         if (order == null)
@@ -164,34 +188,62 @@ public class OrderService : IOrderService
         if (order.IsPaid)
             throw new InvalidOperationException("La orden ya fue cobrada.");
 
-        await _orderRepository.MarkAsPaidAsync(orderId);
+        dto ??= new MarkOrderPaidDto();
+
+        await _orderRepository.MarkAsPaidAsync(
+            orderId,
+            paidByName,
+            (dto.PaymentMethod ?? "efectivo").Trim().ToLowerInvariant(),
+            (dto.ReceiptNumber ?? string.Empty).Trim(),
+            (dto.DocumentType ?? "ticket").Trim().ToLowerInvariant(),
+            dto.InvoiceRequested
+        );
 
         var updatedOrder = await GetOrderById(orderId);
         if (updatedOrder != null)
             await _notificationService.NotifyOrderPaid(updatedOrder);
     }
 
-    // ----------------------------
-    // MESA (CAJA / ADMIN)
-    // ----------------------------
-
-    public async Task CloseTable(int tableNumber)
+    public async Task CloseTable(int tableNumber, string? requesterUserId = null, bool isAdmin = false)
     {
+        if (await _orderRepository.HasActiveOrdersForTableAsync(tableNumber, string.Empty))
+            throw new InvalidOperationException($"La mesa {tableNumber} todavia tiene ordenes activas.");
+
         if (await _orderRepository.HasPendingPaymentForTableAsync(tableNumber))
             throw new InvalidOperationException($"La mesa {tableNumber} tiene cobros pendientes.");
 
+        var cleanupCandidate = (await _orderRepository.GetHistoryAsync())
+            .Where(o => o.TableNumber == tableNumber)
+            .Where(o => o.Status == OrderStatus.Delivered && o.IsPaid && !o.IsCleanupCompleted)
+            .OrderByDescending(o => o.PaidAt ?? o.DeliveredAt ?? o.CreatedAt)
+            .FirstOrDefault();
+
+        if (cleanupCandidate == null)
+            throw new InvalidOperationException($"La mesa {tableNumber} no tiene limpieza pendiente.");
+
+        var cleanupReferenceDate = cleanupCandidate.PaidAt ?? cleanupCandidate.DeliveredAt ?? cleanupCandidate.CreatedAt;
+        var hasNewerOrderForSameTable = await _orderRepository.HasNewerOrdersForTableAsync(
+            tableNumber,
+            cleanupReferenceDate,
+            cleanupCandidate.Id!
+        );
+
+        if (hasNewerOrderForSameTable)
+            throw new InvalidOperationException($"La mesa {tableNumber} tiene una orden mas reciente y aun no puede liberarse.");
+
+        if (!isAdmin && !string.IsNullOrEmpty(requesterUserId) && cleanupCandidate.WaiterId != requesterUserId)
+            throw new InvalidOperationException($"Solo el mesero que tomo la ultima orden pagada de la mesa {tableNumber} puede limpiarla.");
+
         await _orderRepository.MarkCleanupCompletedForTableAsync(tableNumber);
-        await _tableRepository.SetOccupiedAsync(tableNumber, false);
-        await _notificationService.NotifyTableStatusUpdated(tableNumber, false);
+        await _tableRepository.ClearServiceStateAsync(tableNumber, false);
+        var updatedTable = await _tableRepository.GetByNumberAsync(tableNumber);
+        if (updatedTable != null)
+            await _notificationService.NotifyTableStatusUpdated(updatedTable);
     }
 
-    // ----------------------------
-    // QUERIES
-    // ----------------------------
-
-    public async Task<IEnumerable<OrderDto>> GetWaiterOrdersToday(string waiterName)
+    public async Task<IEnumerable<OrderDto>> GetWaiterOrdersToday(string waiterId)
     {
-        var allOrders = await _orderRepository.GetOrdersByWaiterAsync(waiterName);
+        var allOrders = await _orderRepository.GetOrdersByWaiterAsync(waiterId);
         var today = DateTime.UtcNow.Date;
 
         return allOrders
@@ -238,14 +290,14 @@ public class OrderService : IOrderService
         };
     }
 
-    public async Task CancelOrder(string orderId)
+    public async Task CancelOrder(string orderId, string cancelledByName)
     {
         var order = await _orderRepository.GetByIdAsync(orderId);
         if (order == null) return;
 
         await _orderRepository.UpdateStatusAsync(orderId, OrderStatus.Cancelled);
+        await _orderRepository.SetCancelledByAsync(orderId, cancelledByName);
 
-        // Restaurar stock
         foreach (var item in order.Items)
         {
             await _productRepository.RestoreStockAsync(item.ProductId, item.Quantity);
@@ -256,21 +308,19 @@ public class OrderService : IOrderService
                 await _notificationService.NotifyStockUpdated(item.ProductId, updated.Stock);
         }
 
-        // Verificar si la mesa queda libre
         var stillActive = await _orderRepository.HasActiveOrdersForTableAsync(order.TableNumber, orderId);
 
         if (!stillActive)
         {
-            await _tableRepository.SetOccupiedAsync(order.TableNumber, false);
-            await _notificationService.NotifyTableStatusUpdated(order.TableNumber, false);
+            await _tableRepository.ClearServiceStateAsync(order.TableNumber, false);
+            var updatedTable = await _tableRepository.GetByNumberAsync(order.TableNumber);
+            if (updatedTable != null)
+                await _notificationService.NotifyTableStatusUpdated(updatedTable);
         }
+
         var orderDto = MapToDto(order);
         await _notificationService.NotifyOrderCancelled(orderDto);
     }
-
-    // ----------------------------
-    // GETTERS
-    // ----------------------------
 
     public async Task<OrderDto?> GetOrderById(string id)
     {
@@ -300,16 +350,25 @@ public class OrderService : IOrderService
             .Select(MapToDto)
             .ToList();
 
-    // ----------------------------
-    // MAPPER
-    // ----------------------------
-
     private static OrderDto MapToDto(Order order) => new()
     {
         Id = order.Id!,
         TableNumber = order.TableNumber,
+        CorrelativeNumber = order.CorrelativeNumber,
+        CorrelativeCode = order.CorrelativeCode,
         CustomerName = order.CustomerName,
+        WaiterId = order.WaiterId,
         WaiterName = order.WaiterName,
+        PreparedByName = order.PreparedByName,
+        PaidByName = order.PaidByName,
+        CancelledByName = order.CancelledByName,
+        PaymentMethod = order.PaymentMethod,
+        ReceiptNumber = order.ReceiptNumber,
+        DocumentType = order.DocumentType,
+        InvoiceRequested = order.InvoiceRequested,
+        TaxableAmount = order.TaxableAmount,
+        TaxAmount = order.TaxAmount,
+        TotalAmount = order.TotalAmount,
         Status = order.Status,
         CreatedAt = order.CreatedAt,
         StartedAt = order.StartedAt,

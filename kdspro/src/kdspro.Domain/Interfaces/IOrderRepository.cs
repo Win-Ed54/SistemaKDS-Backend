@@ -39,7 +39,13 @@ namespace kdspro.Domain.Interfaces
 
         Task<List<Order>> GetOrdersByWaiterAsync(string waiterId);
 
-        Task MarkAsPaidAsync(string id, CancellationToken ct = default);
+        Task<int> GetNextCorrelativeNumberAsync(CancellationToken ct = default);
+
+        Task MarkAsPaidAsync(string id, string paidByName, string paymentMethod, string receiptNumber, string documentType, bool invoiceRequested, CancellationToken ct = default);
+
+        Task SetPreparedByAsync(string id, string preparedByName, CancellationToken ct = default);
+
+        Task SetCancelledByAsync(string id, string cancelledByName, CancellationToken ct = default);
 
         Task MarkCleanupCompletedForTableAsync(int tableNumber, CancellationToken ct = default);
 

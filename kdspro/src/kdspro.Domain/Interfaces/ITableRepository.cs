@@ -19,4 +19,19 @@ public interface ITableRepository : IGenericRepository<Table>
     Task UpdateAvailabilityAsync(string id, bool isActive);
 
     Task SetOccupiedAsync(int tableNumber, bool occupied);
+    Task<Table?> GetByNumberAsync(int tableNumber);
+    Task SeatGuestsAsync(
+        int tableNumber,
+        int partySize,
+        int estimatedDiningMinutes,
+        string notes,
+        string assignedByName,
+        string assignedWaiterId,
+        string assignedWaiterName,
+        DateTime occupiedSinceUtc);
+    Task StartCleaningAsync(
+        int tableNumber,
+        int estimatedCleaningMinutes,
+        DateTime cleaningStartedAtUtc);
+    Task ClearServiceStateAsync(int tableNumber, bool occupied);
 }

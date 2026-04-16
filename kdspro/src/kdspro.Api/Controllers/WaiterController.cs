@@ -37,6 +37,20 @@ public class WaiterController : ControllerBase
         return Ok(summary);
     }
 
+    [HttpGet("today")]
+    public async Task<ActionResult<IEnumerable<OrderDto>>> GetMyOrdersToday()
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        if (string.IsNullOrEmpty(userId))
+        {
+            return Unauthorized("No se pudo identificar al usuario en el token.");
+        }
+
+        var orders = await _orderService.GetWaiterOrdersToday(userId);
+        return Ok(orders);
+    }
+
     // GET: api/waiter/my-orders
     // (Opcional) Si solo quieres la lista de órdenes activas sin los contadores
     [HttpGet("my-orders")]

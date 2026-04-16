@@ -1,4 +1,5 @@
 using kdspro.Domain.Entities;
+using kdspro.Application.Services;
 using MongoDB.Driver;
 
 namespace kdspro.Infrastructure.Persistence;
@@ -64,10 +65,7 @@ public static class DbSeeder
 
     public static async Task SeedUsers(IMongoCollection<User> users)
     {
-        var count = await users.CountDocumentsAsync(_ => true);
-        if (count > 0) return;
-
-        await users.InsertManyAsync(new List<User>
+        var seedUsers = new List<User>
         {
         new() { Username = "admin",    PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin_KDS_2026!"), Role = "admin" },
         new() { Username = "gerente",  PasswordHash = BCrypt.Net.BCrypt.HashPassword("Gerente2026!"),    Role = "admin" },
@@ -80,7 +78,37 @@ public static class DbSeeder
         // MESEROS (WAITER)
         new() { Username = "waiter1",  PasswordHash = BCrypt.Net.BCrypt.HashPassword("waiter2026"),     Role = "waiter" },
         new() { Username = "Edwin",   PasswordHash = BCrypt.Net.BCrypt.HashPassword("Edwin2026"),     Role = "waiter" },
-        new() { Username = "waiter2",      PasswordHash = BCrypt.Net.BCrypt.HashPassword("waiter22026"),        Role = "waiter" }
+        new() { Username = "waiter2",      PasswordHash = BCrypt.Net.BCrypt.HashPassword("waiter22026"),        Role = "waiter" },
+
+        // HOST / RECEPCION
+        new() { Username = "host1", PasswordHash = BCrypt.Net.BCrypt.HashPassword("host2026"), Role = "host" }
+        };
+
+        foreach (var user in seedUsers)
+        {
+            var exists = await users.Find(existing => existing.Username == user.Username).AnyAsync();
+            if (!exists)
+            {
+                await users.InsertOneAsync(user);
+            }
+        }
+    }
+
+    public static async Task SeedKdsSettings(IMongoCollection<KdsSettings> settingsCollection)
+    {
+        if (await settingsCollection.CountDocumentsAsync(_ => true) > 0) return;
+
+        var defaults = OrderValidationRules.GetDefaults(OrderValidationRules.QuickServiceMode);
+
+        await settingsCollection.InsertOneAsync(new KdsSettings
+        {
+            Id = "default",
+            ServiceMode = OrderValidationRules.QuickServiceMode,
+            MaxDistinctItems = defaults.MaxDistinctItems,
+            MaxTotalUnits = defaults.MaxTotalUnits,
+            MaxQuantityPerProduct = defaults.MaxQuantityPerProduct,
+            LargeOrderUnitsWarning = defaults.LargeOrderUnitsWarning,
+            UpdatedAt = DateTime.UtcNow,
         });
     }
 }

@@ -1,4 +1,5 @@
 using kdspro.Application.DTOs;
+using kdspro.Domain.Entities;
 
 namespace kdspro.Domain.Interfaces;
 
@@ -32,5 +33,5 @@ public interface IOrderNotificationService
     // MESAS
     // ----------------------------
 
-    Task NotifyTableStatusUpdated(int tableNumber, bool isOccupied);
+    Task NotifyTableStatusUpdated(Table table);
 }

@@ -13,15 +13,15 @@ public interface IOrderService
     Task<List<OrderDto>> GetReadyOrders();
     Task<List<OrderDto>> GetHistory();
     Task<WaiterSummaryDto> GetWaiterSummary(string userId, string username);
-    Task<IEnumerable<OrderDto>> GetWaiterOrdersToday(string waiterName); // Solo una vez
+    Task<IEnumerable<OrderDto>> GetWaiterOrdersToday(string waiterId);
     
     // Estados
-    Task SetPreparing(string orderId);
-    Task SetReady(string orderId);
+    Task SetPreparing(string orderId, string preparedByName);
+    Task SetReady(string orderId, string preparedByName);
     Task SetFinished(string orderId);
-    Task MarkAsPaid(string orderId);
-    Task CancelOrder(string orderId);
+    Task MarkAsPaid(string orderId, string paidByName, MarkOrderPaidDto dto);
+    Task CancelOrder(string orderId, string cancelledByName);
     
     // Control de Mesas
-    Task CloseTable(int tableNumber);
+    Task CloseTable(int tableNumber, string? requesterUserId = null, bool isAdmin = false);
 }

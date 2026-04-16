@@ -30,6 +30,13 @@ public class UserRepository : IUserRepository
             .FirstOrDefaultAsync();
     }
 
+    public async Task<List<User>> GetByRole(string role)
+    {
+        return await _users
+            .Find(u => u.Role == role)
+            .ToListAsync();
+    }
+
     public async Task Create(User user)
     {
         await _users.InsertOneAsync(user);

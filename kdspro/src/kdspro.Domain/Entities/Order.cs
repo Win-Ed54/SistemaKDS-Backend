@@ -12,6 +12,8 @@ public class Order
     public string? Id { get; set; }
 
     public int TableNumber { get; set; }
+    public int CorrelativeNumber { get; set; }
+    public string CorrelativeCode { get; set; } = string.Empty;
 
     // --- TIEMPOS DE AUDITORÍA Y KPIs ---
 
@@ -46,6 +48,19 @@ public class Order
     public string CustomerName { get; set; } = "Cliente";
     public string WaiterId { get; set; } = null!;
     public string WaiterName { get; set; } = string.Empty;
+    public string PreparedByName { get; set; } = string.Empty;
+    public string PaidByName { get; set; } = string.Empty;
+    public string CancelledByName { get; set; } = string.Empty;
+    public string PaymentMethod { get; set; } = string.Empty;
+    public string ReceiptNumber { get; set; } = string.Empty;
+    public string DocumentType { get; set; } = "ticket";
+    public bool InvoiceRequested { get; set; } = false;
+
+    [BsonRepresentation(BsonType.Decimal128)]
+    public decimal TaxableAmount { get; set; }
+
+    [BsonRepresentation(BsonType.Decimal128)]
+    public decimal TaxAmount { get; set; }
 
     
 

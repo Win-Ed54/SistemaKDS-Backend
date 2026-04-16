@@ -125,7 +125,9 @@ builder.Services.AddScoped<MongoDbContext>();
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 builder.Services.AddScoped<ITableRepository, TableRepository>();
+builder.Services.AddScoped<IKdsSettingsRepository, KdsSettingsRepository>();
 builder.Services.AddScoped<IOrderService, OrderService>();
+builder.Services.AddScoped<IKdsSettingsService, KdsSettingsService>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<IOrderNotificationService, OrderNotificationService>();
@@ -157,6 +159,7 @@ using (var scope = app.Services.CreateScope())
         await DbSeeder.SeedProducts(context.Products);
         await DbSeeder.SeedTables(context.Tables);
         await DbSeeder.SeedUsers(context.Users);
+        await DbSeeder.SeedKdsSettings(context.KdsSettings);
         Console.WriteLine(">>> Datos inicializados correctamente");
     } catch (Exception ex) {
         Console.WriteLine($">>> Error en Seeder: {ex.Message}");

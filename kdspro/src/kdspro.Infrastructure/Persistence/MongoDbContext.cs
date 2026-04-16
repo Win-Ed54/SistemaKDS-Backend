@@ -59,4 +59,6 @@ public class MongoDbContext
 
     public IMongoCollection<User> Users => _database.GetCollection<User>("Users");
 
+    public IMongoCollection<KdsSettings> KdsSettings => _database.GetCollection<KdsSettings>("KdsSettings");
+
 }

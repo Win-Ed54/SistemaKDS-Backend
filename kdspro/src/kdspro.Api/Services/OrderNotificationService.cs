@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.SignalR;
 using kdspro.Api.Hubs;
 using kdspro.Application.DTOs;
+using kdspro.Domain.Entities;
 using kdspro.Domain.Interfaces;
 
 namespace kdspro.Api.Services;
@@ -24,12 +25,32 @@ public class OrderNotificationService : IOrderNotificationService
     {
         await _hubContext.Clients.Groups("kitchen", "admin").SendAsync("orderpreparing", order);
         await _hubContext.Clients.Groups("kitchen", "admin").SendAsync("OrderPreparing", order);
+        await _hubContext.Clients.All.SendAsync("UpdateOrderStatus", new
+        {
+            orderId = order.Id,
+            status = "Preparing",
+            tableNumber = order.TableNumber,
+        });
     }
 
     public async Task NotifyOrderReady(OrderDto order)
     {
-        await _hubContext.Clients.Groups("waiter", "admin").SendAsync("orderready", order);
-        await _hubContext.Clients.Groups("waiter", "admin").SendAsync("OrderReady", order);
+        await _hubContext.Clients.All.SendAsync("orderready", order);
+        await _hubContext.Clients.All.SendAsync("OrderReady", order);
+        await _hubContext.Clients.All.SendAsync("UpdateOrderStatus", new
+        {
+            orderId = order.Id,
+            status = "Ready",
+            tableNumber = order.TableNumber,
+        });
+        await _hubContext.Clients.All.SendAsync("OrderReadyForPickup", new
+        {
+            orderId = order.Id,
+            tableNumber = order.TableNumber,
+            waiterId = order.WaiterId,
+            waiterName = order.WaiterName,
+            customerName = order.CustomerName,
+        });
     }
 
     public async Task NotifyOrderDelivered(OrderDto order)
@@ -66,11 +87,9 @@ public class OrderNotificationService : IOrderNotificationService
         await _hubContext.Clients.Groups("waiter", "admin").SendAsync("productoutofstock", productId);
     }
 
-    public async Task NotifyTableStatusUpdated(int tableNumber, bool isOccupied)
+    public async Task NotifyTableStatusUpdated(Table table)
     {
-        var payload = new { tableNumber, isOccupied };
-
-        await _hubContext.Clients.All.SendAsync("tablesupdated", payload);
-        await _hubContext.Clients.All.SendAsync("TableUpdated", payload);
+        await _hubContext.Clients.All.SendAsync("tablesupdated", table);
+        await _hubContext.Clients.All.SendAsync("TableUpdated", table);
     }
 }

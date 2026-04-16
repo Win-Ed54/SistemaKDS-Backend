@@ -9,6 +9,7 @@ public class OrdersHub : Hub
 {
     private const string KitchenGroup = "kitchen";
     private const string WaiterGroup = "waiter";
+    private const string HostGroup = "host";
     private const string AdminGroup = "admin";
     private const string CashierGroup = "cashier";
 
@@ -23,6 +24,10 @@ public class OrdersHub : Hub
         else if (role == "waiter")
         {
             await Groups.AddToGroupAsync(Context.ConnectionId, WaiterGroup);
+        }
+        else if (role == "host")
+        {
+            await Groups.AddToGroupAsync(Context.ConnectionId, HostGroup);
         }
         else if (role == "admin")
         {

@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using kdspro.Application.DTOs;
 using kdspro.Application.Interfaces;
+using kdspro.Domain.Interfaces;
+using System.Security.Claims;
 
 namespace kdspro.Api.Controllers;
 
@@ -11,10 +13,12 @@ namespace kdspro.Api.Controllers;
 public class OrdersController : ControllerBase
 {
     private readonly IOrderService _orderService;
+    private readonly ITableRepository _tableRepository;
 
-    public OrdersController(IOrderService orderService)
+    public OrdersController(IOrderService orderService, ITableRepository tableRepository)
     {
         _orderService = orderService;
+        _tableRepository = tableRepository;
     }
 
     [Authorize(Roles = "waiter,admin")]
@@ -23,9 +27,36 @@ public class OrdersController : ControllerBase
     {
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         var username = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value;
+        var role = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? string.Empty;
 
         try
         {
+            if (dto.TableNumber > 0)
+            {
+                var table = await _tableRepository.GetByNumberAsync(dto.TableNumber);
+                if (table == null)
+                    return NotFound(new { error = "La mesa no existe." });
+
+                if (role == "waiter")
+                {
+                    var waiterMatchesById =
+                        !string.IsNullOrWhiteSpace(table.AssignedWaiterId) &&
+                        table.AssignedWaiterId == userId;
+                    var waiterMatchesByName =
+                        !string.IsNullOrWhiteSpace(table.AssignedWaiterName) &&
+                        string.Equals(
+                            table.AssignedWaiterName.Trim(),
+                            username?.Trim(),
+                            StringComparison.OrdinalIgnoreCase);
+
+                    if (!waiterMatchesById && !waiterMatchesByName)
+                        return StatusCode(StatusCodes.Status403Forbidden, new
+                        {
+                            error = $"La mesa {dto.TableNumber} esta asignada a otro mesero."
+                        });
+                }
+            }
+
             var order = await _orderService.CreateOrder(dto, userId!, username!);
 
             return Ok(order);
@@ -40,7 +71,8 @@ public class OrdersController : ControllerBase
     [HttpPatch("{id}/preparing")]
     public async Task<IActionResult> Preparing(string id)
     {
-        await _orderService.SetPreparing(id);
+        var username = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "Cocina";
+        await _orderService.SetPreparing(id, username);
         var order = await _orderService.GetOrderById(id);
         if (order == null) return NotFound();
 
@@ -51,7 +83,8 @@ public class OrdersController : ControllerBase
     [HttpPatch("{id}/ready")]
     public async Task<IActionResult> Ready(string id)
     {
-        await _orderService.SetReady(id);
+        var username = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "Cocina";
+        await _orderService.SetReady(id, username);
         var order = await _orderService.GetOrderById(id);
         if (order == null) return NotFound();
         return Ok(order);
@@ -67,11 +100,13 @@ public class OrdersController : ControllerBase
 
     [Authorize(Roles = "admin,cashier")]
     [HttpPatch("{id}/pay")]
-    public async Task<IActionResult> Pay(string id)
+    public async Task<IActionResult> Pay(string id, [FromBody] MarkOrderPaidDto dto)
     {
         try
         {
-            await _orderService.MarkAsPaid(id);
+            dto ??= new MarkOrderPaidDto();
+            var username = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "Caja";
+            await _orderService.MarkAsPaid(id, username, dto);
             return Ok(new { id, message = "Orden cobrada con exito" });
         }
         catch (InvalidOperationException ex)
@@ -84,7 +119,8 @@ public class OrdersController : ControllerBase
     [HttpPatch("{id}/cancel")]
     public async Task<IActionResult> Cancel(string id)
     {
-        await _orderService.CancelOrder(id);
+        var username = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "Admin";
+        await _orderService.CancelOrder(id, username);
         return NoContent();
     }
 
@@ -154,7 +190,36 @@ public class OrdersController : ControllerBase
     {
         try
         {
-            await _orderService.CloseTable(tableNumber);
+            var role = User.FindFirstValue(ClaimTypes.Role) ?? string.Empty;
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty;
+            var username = User.FindFirstValue(ClaimTypes.Name) ?? User.Identity?.Name ?? string.Empty;
+            var table = await _tableRepository.GetByNumberAsync(tableNumber);
+
+            if (table == null)
+                return NotFound(new { error = "La mesa no existe." });
+
+            if (role == "waiter")
+            {
+                var waiterMatchesById =
+                    !string.IsNullOrWhiteSpace(table.AssignedWaiterId) &&
+                    table.AssignedWaiterId == userId;
+                var waiterMatchesByName =
+                    !string.IsNullOrWhiteSpace(table.AssignedWaiterName) &&
+                    string.Equals(
+                        table.AssignedWaiterName.Trim(),
+                        username.Trim(),
+                        StringComparison.OrdinalIgnoreCase);
+
+                if (!waiterMatchesById && !waiterMatchesByName)
+                {
+                    return StatusCode(StatusCodes.Status403Forbidden, new
+                    {
+                        error = $"La mesa {tableNumber} esta asignada a otro mesero."
+                    });
+                }
+            }
+
+            await _orderService.CloseTable(tableNumber, userId, role == "admin");
             return Ok(new { message = $"Mesa {tableNumber} liberada correctamente." });
         }
         catch (Exception ex)

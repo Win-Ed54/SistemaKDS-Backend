@@ -9,8 +9,12 @@ namespace kdspro.Infrastructure.Repositories;
 
 public class OrderRepository : GenericRepository<Order>, IOrderRepository
 {
+    private readonly IMongoCollection<BsonDocument> _counters;
+
     public OrderRepository(MongoDbContext context) : base(context, "Orders")
     {
+        _counters = context.Database.GetCollection<BsonDocument>("Counters");
+
         var indexKeys = Builders<Order>.IndexKeys
             .Ascending(o => o.Status)
             .Ascending(o => o.CreatedAt);
@@ -130,13 +134,46 @@ public class OrderRepository : GenericRepository<Order>, IOrderRepository
             .ToListAsync();
     }
 
-    public async Task MarkAsPaidAsync(string id, CancellationToken ct = default)
+    public async Task<int> GetNextCorrelativeNumberAsync(CancellationToken ct = default)
+    {
+        var filter = Builders<BsonDocument>.Filter.Eq("_id", "orders");
+        var update = Builders<BsonDocument>.Update.Inc("seq", 1);
+        var options = new FindOneAndUpdateOptions<BsonDocument>
+        {
+            IsUpsert = true,
+            ReturnDocument = ReturnDocument.After
+        };
+
+        var result = await _counters.FindOneAndUpdateAsync(filter, update, options, ct);
+        return result["seq"].AsInt32;
+    }
+
+    public async Task MarkAsPaidAsync(string id, string paidByName, string paymentMethod, string receiptNumber, string documentType, bool invoiceRequested, CancellationToken ct = default)
     {
         var filter = Builders<Order>.Filter.Eq("_id", new ObjectId(id));
         var update = Builders<Order>.Update
             .Set(o => o.IsPaid, true)
-            .Set(o => o.PaidAt, DateTime.UtcNow);
+            .Set(o => o.PaidAt, DateTime.UtcNow)
+            .Set(o => o.PaidByName, paidByName)
+            .Set(o => o.PaymentMethod, paymentMethod)
+            .Set(o => o.ReceiptNumber, receiptNumber)
+            .Set(o => o.DocumentType, documentType)
+            .Set(o => o.InvoiceRequested, invoiceRequested);
 
+        await _collection.UpdateOneAsync(filter, update, cancellationToken: ct);
+    }
+
+    public async Task SetPreparedByAsync(string id, string preparedByName, CancellationToken ct = default)
+    {
+        var filter = Builders<Order>.Filter.Eq("_id", new ObjectId(id));
+        var update = Builders<Order>.Update.Set(o => o.PreparedByName, preparedByName);
+        await _collection.UpdateOneAsync(filter, update, cancellationToken: ct);
+    }
+
+    public async Task SetCancelledByAsync(string id, string cancelledByName, CancellationToken ct = default)
+    {
+        var filter = Builders<Order>.Filter.Eq("_id", new ObjectId(id));
+        var update = Builders<Order>.Update.Set(o => o.CancelledByName, cancelledByName);
         await _collection.UpdateOneAsync(filter, update, cancellationToken: ct);
     }
 

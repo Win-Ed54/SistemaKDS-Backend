@@ -8,8 +8,21 @@ public class OrderDto
 {
     public string Id { get; set; } = "";
     public int TableNumber { get; set; }
+    public int CorrelativeNumber { get; set; }
+    public string CorrelativeCode { get; set; } = "";
     public string CustomerName { get; set; } = "";
+    public string WaiterId { get; set; } = "";
     public string WaiterName { get; set; } = "";
+    public string PreparedByName { get; set; } = "";
+    public string PaidByName { get; set; } = "";
+    public string CancelledByName { get; set; } = "";
+    public string PaymentMethod { get; set; } = "";
+    public string ReceiptNumber { get; set; } = "";
+    public string DocumentType { get; set; } = "";
+    public bool InvoiceRequested { get; set; }
+    public decimal TaxableAmount { get; set; }
+    public decimal TaxAmount { get; set; }
+    public decimal TotalAmount { get; set; }
     public OrderStatus Status { get; set; }
     public List<OrderItemDto> Items { get; set; } = new();
     public DateTime CreatedAt { get; set; }
