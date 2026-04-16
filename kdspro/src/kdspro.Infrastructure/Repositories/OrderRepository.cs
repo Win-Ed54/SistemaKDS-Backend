@@ -106,11 +106,18 @@ public class OrderRepository : GenericRepository<Order>, IOrderRepository
 
     public async Task<bool> HasActiveOrdersForTableAsync(int tableNumber, string excludeOrderId)
     {
-        var filter = Builders<Order>.Filter.And(
+        var filters = new List<FilterDefinition<Order>>
+        {
             Builders<Order>.Filter.Eq(o => o.TableNumber, tableNumber),
-            Builders<Order>.Filter.Ne(o => o.Id, excludeOrderId),
             Builders<Order>.Filter.Lt(o => o.Status, OrderStatus.Delivered)
-        );
+        };
+
+        if (!string.IsNullOrWhiteSpace(excludeOrderId))
+        {
+            filters.Add(Builders<Order>.Filter.Ne(o => o.Id, excludeOrderId));
+        }
+
+        var filter = Builders<Order>.Filter.And(filters);
         return await _collection.Find(filter).AnyAsync();
 
 
@@ -118,11 +125,18 @@ public class OrderRepository : GenericRepository<Order>, IOrderRepository
 
     public async Task<bool> HasNewerOrdersForTableAsync(int tableNumber, DateTime createdAfter, string excludeOrderId)
     {
-        var filter = Builders<Order>.Filter.And(
+        var filters = new List<FilterDefinition<Order>>
+        {
             Builders<Order>.Filter.Eq(o => o.TableNumber, tableNumber),
-            Builders<Order>.Filter.Ne(o => o.Id, excludeOrderId),
             Builders<Order>.Filter.Gt(o => o.CreatedAt, createdAfter)
-        );
+        };
+
+        if (!string.IsNullOrWhiteSpace(excludeOrderId))
+        {
+            filters.Add(Builders<Order>.Filter.Ne(o => o.Id, excludeOrderId));
+        }
+
+        var filter = Builders<Order>.Filter.And(filters);
 
         return await _collection.Find(filter).AnyAsync();
     }

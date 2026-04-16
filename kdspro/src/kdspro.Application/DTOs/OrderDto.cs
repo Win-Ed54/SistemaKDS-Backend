@@ -23,6 +23,8 @@ public class OrderDto
     public decimal TaxableAmount { get; set; }
     public decimal TaxAmount { get; set; }
     public decimal TotalAmount { get; set; }
+    public decimal PaidAmount { get; set; }
+    public decimal RemainingAmount { get; set; }
     public OrderStatus Status { get; set; }
     public List<OrderItemDto> Items { get; set; } = new();
     public DateTime CreatedAt { get; set; }

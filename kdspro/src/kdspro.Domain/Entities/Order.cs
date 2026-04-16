@@ -94,6 +94,7 @@ public class OrderItem
     public string ProductId { get; set; } = string.Empty;
     public string ProductName { get; set; } = string.Empty;
     public int Quantity { get; set; }
+    public int PaidQuantity { get; set; } = 0;
 
     [BsonRepresentation(BsonType.Decimal128)]
     public decimal UnitPrice { get; set; }

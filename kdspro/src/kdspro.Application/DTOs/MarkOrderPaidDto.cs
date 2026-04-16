@@ -6,4 +6,5 @@ public class MarkOrderPaidDto
     public string ReceiptNumber { get; set; } = string.Empty;
     public string DocumentType { get; set; } = "ticket";
     public bool InvoiceRequested { get; set; } = false;
+    public List<OrderItemPaymentDto> ItemPayments { get; set; } = [];
 }

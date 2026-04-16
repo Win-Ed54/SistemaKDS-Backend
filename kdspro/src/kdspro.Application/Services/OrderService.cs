@@ -189,19 +189,69 @@ public class OrderService : IOrderService
             throw new InvalidOperationException("La orden ya fue cobrada.");
 
         dto ??= new MarkOrderPaidDto();
+        var requestedPayments = dto.ItemPayments?
+            .Where(item => item.Quantity > 0)
+            .ToList() ?? [];
 
-        await _orderRepository.MarkAsPaidAsync(
-            orderId,
-            paidByName,
-            (dto.PaymentMethod ?? "efectivo").Trim().ToLowerInvariant(),
-            (dto.ReceiptNumber ?? string.Empty).Trim(),
-            (dto.DocumentType ?? "ticket").Trim().ToLowerInvariant(),
-            dto.InvoiceRequested
-        );
+        if (requestedPayments.Count == 0)
+        {
+            requestedPayments = order.Items
+                .Select((item, index) => new OrderItemPaymentDto
+                {
+                    LineIndex = index,
+                    Quantity = Math.Max(0, item.Quantity - item.PaidQuantity),
+                })
+                .Where(item => item.Quantity > 0)
+                .ToList();
+        }
 
-        var updatedOrder = await GetOrderById(orderId);
-        if (updatedOrder != null)
-            await _notificationService.NotifyOrderPaid(updatedOrder);
+        if (requestedPayments.Count == 0)
+            throw new InvalidOperationException("No hay productos pendientes por cobrar en esta orden.");
+
+        foreach (var payment in requestedPayments)
+        {
+            if (payment.LineIndex < 0 || payment.LineIndex >= order.Items.Count)
+                throw new InvalidOperationException("La linea de producto seleccionada no existe.");
+
+            var targetItem = order.Items[payment.LineIndex];
+            var remainingQuantity = Math.Max(0, targetItem.Quantity - targetItem.PaidQuantity);
+
+            if (remainingQuantity <= 0)
+                throw new InvalidOperationException($"{targetItem.ProductName} ya fue cobrado por completo.");
+
+            if (payment.Quantity > remainingQuantity)
+            {
+                throw new InvalidOperationException(
+                    $"{targetItem.ProductName}: solo quedan {remainingQuantity} unidades pendientes de cobro.");
+            }
+        }
+
+        foreach (var payment in requestedPayments)
+        {
+            order.Items[payment.LineIndex].PaidQuantity += payment.Quantity;
+        }
+
+        var allItemsPaid = order.Items.All(item => item.PaidQuantity >= item.Quantity);
+
+        if (allItemsPaid)
+        {
+            order.IsPaid = true;
+            order.PaidAt = DateTime.UtcNow;
+            order.PaidByName = paidByName;
+            order.PaymentMethod = (dto.PaymentMethod ?? "efectivo").Trim().ToLowerInvariant();
+            order.ReceiptNumber = (dto.ReceiptNumber ?? string.Empty).Trim();
+            order.DocumentType = (dto.DocumentType ?? "ticket").Trim().ToLowerInvariant();
+            order.InvoiceRequested = dto.InvoiceRequested;
+        }
+
+        await _orderRepository.UpdateAsync(orderId, order);
+
+        if (allItemsPaid)
+        {
+            var updatedOrder = await GetOrderById(orderId);
+            if (updatedOrder != null)
+                await _notificationService.NotifyOrderPaid(updatedOrder);
+        }
     }
 
     public async Task CloseTable(int tableNumber, string? requesterUserId = null, bool isAdmin = false)
@@ -369,6 +419,8 @@ public class OrderService : IOrderService
         TaxableAmount = order.TaxableAmount,
         TaxAmount = order.TaxAmount,
         TotalAmount = order.TotalAmount,
+        PaidAmount = order.Items?.Sum(i => i.UnitPrice * i.PaidQuantity) ?? 0,
+        RemainingAmount = order.Items?.Sum(i => i.UnitPrice * Math.Max(0, i.Quantity - i.PaidQuantity)) ?? 0,
         Status = order.Status,
         CreatedAt = order.CreatedAt,
         StartedAt = order.StartedAt,
@@ -378,11 +430,14 @@ public class OrderService : IOrderService
         PaidAt = order.PaidAt,
         IsCleanupCompleted = order.IsCleanupCompleted,
         CleanupCompletedAt = order.CleanupCompletedAt,
-        Items = order.Items?.Select(i => new OrderItemDto
+        Items = order.Items?.Select((i, index) => new OrderItemDto
         {
+            LineIndex = index,
             ProductId = i.ProductId,
             ProductName = i.ProductName,
             Quantity = i.Quantity,
+            PaidQuantity = i.PaidQuantity,
+            RemainingQuantity = Math.Max(0, i.Quantity - i.PaidQuantity),
             UnitPrice = i.UnitPrice,
             Notes = i.Notes,
             CurrentStock = 0
