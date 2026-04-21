@@ -32,9 +32,13 @@ public class OrderService : IOrderService
     public async Task<OrderDto> CreateOrder(CreateOrderDto dto, string userId, string username)
     {
         var settings = await _settingsService.GetAsync();
+        var normalizedCustomerName = (dto.CustomerName ?? string.Empty).Trim();
 
         if (dto.Items == null || dto.Items.Count == 0)
             throw new InvalidOperationException("La orden debe incluir al menos un producto.");
+
+        if (dto.TableNumber == 0 && string.IsNullOrWhiteSpace(normalizedCustomerName))
+            throw new InvalidOperationException("El nombre del cliente es obligatorio para pedidos para llevar.");
 
         if (dto.Items.Count > settings.MaxDistinctItems)
             throw new InvalidOperationException($"Maximo {settings.MaxDistinctItems} productos distintos por orden.");
@@ -94,7 +98,7 @@ public class OrderService : IOrderService
             CorrelativeNumber = correlativeNumber,
             CorrelativeCode = $"ORD-{correlativeNumber:000000}",
             TableNumber = dto.TableNumber,
-            CustomerName = dto.CustomerName,
+            CustomerName = string.IsNullOrWhiteSpace(normalizedCustomerName) ? "GENERAL" : normalizedCustomerName,
             WaiterId = userId,
             WaiterName = username,
             TaxableAmount = taxableAmount,

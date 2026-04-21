@@ -67,7 +67,7 @@ builder.Services.AddAuthorization();
 // NOTA: Requiere el paquete NuGet: Microsoft.AspNetCore.SignalR.Protocols.NewtonsoftJson
 builder.Services.AddSignalR(options =>
 {
-    options.EnableDetailedErrors = true;
+    options.EnableDetailedErrors = builder.Environment.IsDevelopment();
     options.KeepAliveInterval = TimeSpan.FromSeconds(15);
 })
 .AddNewtonsoftJsonProtocol(options => 
