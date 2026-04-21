@@ -1,6 +1,6 @@
 ﻿# Sistema KDS Backend
 
-Backend del sistema KDS para restaurantes, construido con .NET 8, MongoDB y SignalR. Esta API centraliza autenticacion, pedidos, stock, mesas, configuracion operativa y eventos en tiempo real para cocina, meseros, caja, host y administracion.
+Backend del sistema KDS para restaurantes, construido con .NET 8, MongoDB y SignalR. Esta API centraliza acceso por roles, pedidos, stock, mesas, configuracion operativa y eventos en tiempo real para cocina, meseros, caja, host y administracion.
 
 ## Stack
 
@@ -8,7 +8,7 @@ Backend del sistema KDS para restaurantes, construido con .NET 8, MongoDB y Sign
 - ASP.NET Core Web API
 - SignalR
 - MongoDB
-- JWT Authentication
+- autenticacion por tokens
 - Clean Architecture
 
 ## Estructura
@@ -20,7 +20,7 @@ Backend del sistema KDS para restaurantes, construido con .NET 8, MongoDB y Sign
 
 ## Modulos principales
 
-- `Auth`: login y renovacion de token
+- `Auth`: acceso y renovacion de sesion
 - `Orders`: creacion de pedidos, estados, cobro, cancelacion y cierre de mesa
 - `Products`: catalogo y stock
 - `Tables`: asignacion de mesas, limpieza y estado operativo
@@ -38,7 +38,7 @@ Backend del sistema KDS para restaurantes, construido con .NET 8, MongoDB y Sign
 
 ## Funcionalidad implementada
 
-- Autenticacion JWT por roles
+- Acceso por roles
 - Pedidos en tiempo real con SignalR
 - Control de stock y proteccion ante sobreventa concurrente
 - Flujo de estados: `Pending`, `Preparing`, `Ready`, `Delivered`, `Cancelled`
@@ -81,27 +81,17 @@ El proyecto crea datos iniciales si la base esta vacia:
 - usuarios demo
 - configuracion inicial del KDS
 
-Credenciales sembradas actualmente:
-
-- `admin / Admin_KDS_2026!`
-- `gerente / Gerente2026!`
-- `caja1 / Caja2026!`
-- `kitchen1 / chef2026`
-- `kitchen2 / preparador2026`
-- `waiter1 / waiter2026`
-- `Edwin / Edwin2026`
-- `waiter2 / waiter22026`
-- `host1 / host2026`
+Las cuentas de prueba del entorno local fueron omitidas de este documento por seguridad. Si se necesita trabajar con usuarios demo, deben configurarse localmente fuera del repositorio publico.
 
 ## Configuracion
 
-La API usa configuracion de Mongo y JWT desde `appsettings` o variables equivalentes.
+La API usa configuracion del entorno desde `appsettings` o variables equivalentes.
 
 Valores esperados por la aplicacion:
 
-- `MongoDB:ConnectionString`
-- `MongoDB:DatabaseName`
-- `Jwt:Key`
+- parametros de base de datos
+- identificadores del entorno
+- secretos de firma o acceso
 
 En `kdspro/src` tambien existe un `.env.example` para el entorno local del proyecto.
 
@@ -156,5 +146,5 @@ dotnet build .\kdspro.Api\kdspro.Api.csproj -m:1
 ## Notas
 
 - El build actual compila correctamente.
-- Puede aparecer una advertencia nullable relacionada con `Jwt:Key` en `Program.cs`; no bloquea la compilacion.
-- Antes de produccion conviene reemplazar usuarios de prueba, restringir CORS y usar una clave JWT fuerte.
+- Puede aparecer una advertencia nullable relacionada con configuracion del entorno en `Program.cs`; no bloquea la compilacion.
+- Antes de produccion conviene reemplazar datos de prueba, restringir origenes y administrar secretos fuera del repositorio.

@@ -12,6 +12,7 @@ namespace kdspro.Api.Controllers;
 [Authorize]
 public class TablesController : ControllerBase
 {
+    private const int MaxPartySize = 10;
     private readonly ITableRepository _repository;
     private readonly IOrderRepository _orderRepository;
     private readonly IOrderNotificationService _notificationService;
@@ -71,6 +72,9 @@ public class TablesController : ControllerBase
     {
         if (dto.PartySize < 1)
             return BadRequest(new { message = "La cantidad de comensales debe ser mayor a cero." });
+
+        if (dto.PartySize > MaxPartySize)
+            return BadRequest(new { message = $"La cantidad de comensales no puede superar {MaxPartySize}." });
 
         if (dto.EstimatedDiningMinutes < 1)
             return BadRequest(new { message = "El tiempo estimado debe ser mayor a cero." });
