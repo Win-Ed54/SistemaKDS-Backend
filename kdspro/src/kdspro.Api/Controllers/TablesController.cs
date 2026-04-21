@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 using kdspro.Application.DTOs;
+using kdspro.Application.Interfaces;
 using kdspro.Domain.Entities;
 using kdspro.Domain.Interfaces;
 
@@ -12,19 +13,21 @@ namespace kdspro.Api.Controllers;
 [Authorize]
 public class TablesController : ControllerBase
 {
-    private const int MaxPartySize = 10;
     private readonly ITableRepository _repository;
     private readonly IOrderRepository _orderRepository;
     private readonly IOrderNotificationService _notificationService;
+    private readonly IKdsSettingsService _settingsService;
 
     public TablesController(
         ITableRepository repository,
         IOrderRepository orderRepository,
-        IOrderNotificationService notificationService)
+        IOrderNotificationService notificationService,
+        IKdsSettingsService settingsService)
     {
         _repository = repository;
         _orderRepository = orderRepository;
         _notificationService = notificationService;
+        _settingsService = settingsService;
     }
 
     [Authorize(Roles = "waiter,host,admin,cashier")]
@@ -70,11 +73,14 @@ public class TablesController : ControllerBase
     [HttpPatch("{tableNumber:int}/seat")]
     public async Task<IActionResult> SeatGuests(int tableNumber, [FromBody] SeatTableDto dto)
     {
+        var settings = await _settingsService.GetAsync();
+        var maxPartySize = settings.MaxPartySize > 0 ? settings.MaxPartySize : 10;
+
         if (dto.PartySize < 1)
             return BadRequest(new { message = "La cantidad de comensales debe ser mayor a cero." });
 
-        if (dto.PartySize > MaxPartySize)
-            return BadRequest(new { message = $"La cantidad de comensales no puede superar {MaxPartySize}." });
+        if (dto.PartySize > maxPartySize)
+            return BadRequest(new { message = $"La cantidad de comensales no puede superar {maxPartySize}." });
 
         if (dto.EstimatedDiningMinutes < 1)
             return BadRequest(new { message = "El tiempo estimado debe ser mayor a cero." });

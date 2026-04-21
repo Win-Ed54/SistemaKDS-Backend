@@ -20,5 +20,13 @@ public class KdsSettings
 
     public int LargeOrderUnitsWarning { get; set; }
 
+    public bool TakeoutRequirePrepayment { get; set; } = false;
+
+    public bool RequireCustomerNameForTakeout { get; set; } = true;
+
+    public int DefaultCleaningMinutes { get; set; } = 8;
+
+    public int MaxPartySize { get; set; } = 10;
+
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

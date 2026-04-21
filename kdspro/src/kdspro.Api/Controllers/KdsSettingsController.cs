@@ -21,7 +21,7 @@ public class KdsSettingsController : ControllerBase
         _hub = hub;
     }
 
-    [Authorize(Roles = "waiter,admin")]
+    [Authorize(Roles = "waiter,host,admin,cashier")]
     [HttpGet]
     public async Task<ActionResult<KdsSettingsDto>> Get() =>
         Ok(await _settingsService.GetAsync());
@@ -31,7 +31,7 @@ public class KdsSettingsController : ControllerBase
     public async Task<ActionResult<KdsSettingsDto>> Update([FromBody] KdsSettingsDto dto)
     {
         var saved = await _settingsService.UpdateAsync(dto);
-        await _hub.Clients.Groups("waiter", "admin").SendAsync("settingsupdated", saved);
+        await _hub.Clients.Groups("waiter", "host", "admin", "cashier").SendAsync("settingsupdated", saved);
         return Ok(saved);
     }
 }

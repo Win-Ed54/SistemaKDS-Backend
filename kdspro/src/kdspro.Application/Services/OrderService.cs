@@ -33,11 +33,12 @@ public class OrderService : IOrderService
     {
         var settings = await _settingsService.GetAsync();
         var normalizedCustomerName = (dto.CustomerName ?? string.Empty).Trim();
+        var requiresTakeoutPrepayment = dto.TableNumber == 0 && settings.TakeoutRequirePrepayment;
 
         if (dto.Items == null || dto.Items.Count == 0)
             throw new InvalidOperationException("La orden debe incluir al menos un producto.");
 
-        if (dto.TableNumber == 0 && string.IsNullOrWhiteSpace(normalizedCustomerName))
+        if (dto.TableNumber == 0 && settings.RequireCustomerNameForTakeout && string.IsNullOrWhiteSpace(normalizedCustomerName))
             throw new InvalidOperationException("El nombre del cliente es obligatorio para pedidos para llevar.");
 
         if (dto.Items.Count > settings.MaxDistinctItems)
@@ -125,9 +126,12 @@ public class OrderService : IOrderService
                 await _notificationService.NotifyTableStatusUpdated(updatedTable);
         }
 
-        await _notificationService.NotifyNewOrder(MapToDto(order));
-
         var resultDto = MapToDto(order);
+
+        if (!requiresTakeoutPrepayment)
+        {
+            await _notificationService.NotifyNewOrder(resultDto);
+        }
 
         foreach (var itemDto in resultDto.Items)
         {
@@ -186,7 +190,13 @@ public class OrderService : IOrderService
         if (order == null)
             throw new InvalidOperationException("La orden no existe.");
 
-        if (order.Status != OrderStatus.Delivered)
+        var settings = await _settingsService.GetAsync();
+        var allowTakeoutPrepayment =
+            settings.TakeoutRequirePrepayment &&
+            order.TableNumber == 0 &&
+            order.Status != OrderStatus.Delivered;
+
+        if (order.Status != OrderStatus.Delivered && !allowTakeoutPrepayment)
             throw new InvalidOperationException("Solo se pueden cobrar ordenes entregadas.");
 
         if (order.IsPaid)
@@ -254,7 +264,11 @@ public class OrderService : IOrderService
         {
             var updatedOrder = await GetOrderById(orderId);
             if (updatedOrder != null)
+            {
                 await _notificationService.NotifyOrderPaid(updatedOrder);
+                if (allowTakeoutPrepayment && order.Status == OrderStatus.Pending)
+                    await _notificationService.NotifyNewOrder(updatedOrder);
+            }
         }
     }
 
@@ -382,15 +396,39 @@ public class OrderService : IOrderService
         return order != null ? MapToDto(order) : null;
     }
 
-    public async Task<List<OrderDto>> GetActiveOrders() =>
-        (await _orderRepository.GetActiveOrdersAsync())
-            .Select(MapToDto)
-            .ToList();
+    public async Task<List<OrderDto>> GetActiveOrders()
+    {
+        var settings = await _settingsService.GetAsync();
 
-    public async Task<List<OrderDto>> GetHistory() =>
-        (await _orderRepository.GetHistoryAsync())
+        return (await _orderRepository.GetActiveOrdersAsync())
+            .Where(order =>
+                !(settings.TakeoutRequirePrepayment &&
+                  order.TableNumber == 0 &&
+                  !order.IsPaid))
             .Select(MapToDto)
             .ToList();
+    }
+
+    public async Task<List<OrderDto>> GetHistory()
+    {
+        var settings = await _settingsService.GetAsync();
+        var history = await _orderRepository.GetHistoryAsync();
+
+        if (settings.TakeoutRequirePrepayment)
+        {
+            var takeoutPendingPayment = (await _orderRepository.GetActiveOrdersAsync())
+                .Where(order => order.TableNumber == 0 && !order.IsPaid);
+
+            history = history
+                .Concat(takeoutPendingPayment)
+                .OrderByDescending(order => order.DeliveredAt ?? order.CreatedAt)
+                .ToList();
+        }
+
+        return history
+            .Select(MapToDto)
+            .ToList();
+    }
 
     public async Task<List<OrderDto>> GetMyOrders(string userId) =>
         (await _orderRepository.GetOrdersByWaiterAsync(userId))

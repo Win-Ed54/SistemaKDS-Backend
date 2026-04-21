@@ -155,6 +155,10 @@ public static class DbSeeder
             MaxTotalUnits = defaults.MaxTotalUnits,
             MaxQuantityPerProduct = defaults.MaxQuantityPerProduct,
             LargeOrderUnitsWarning = defaults.LargeOrderUnitsWarning,
+            TakeoutRequirePrepayment = false,
+            RequireCustomerNameForTakeout = true,
+            DefaultCleaningMinutes = 8,
+            MaxPartySize = 10,
             UpdatedAt = DateTime.UtcNow,
         });
     }
