@@ -70,4 +70,15 @@ public class AuthController : ControllerBase
         var users = await _context.Users.Find(_ => true).ToListAsync();
         return Ok(users.Count);
     }
+
+    [AllowAnonymous]
+    [HttpGet("health")]
+    public IActionResult Health()
+    {
+        return Ok(new
+        {
+            status = "ok",
+            serverTime = DateTime.UtcNow
+        });
+    }
 }
