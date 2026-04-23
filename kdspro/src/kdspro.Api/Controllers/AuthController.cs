@@ -1,9 +1,8 @@
-using Microsoft.AspNetCore.Mvc;
-using kdspro.Application.DTOs;
-using kdspro.Infrastructure.Persistence;
-using MongoDB.Driver;
-using Microsoft.AspNetCore.Authorization;
 using kdspro.Api.Services;
+using kdspro.Application.DTOs;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace kdspro.Api.Controllers;
 
@@ -12,47 +11,47 @@ namespace kdspro.Api.Controllers;
 [Route("api/auth")]
 public class AuthController : ControllerBase
 {
-    private readonly AuthService    _auth;
-    private readonly MongoDbContext _context;
+    private readonly AuthService _auth;
 
-    public AuthController(AuthService auth, MongoDbContext context)
+    public AuthController(AuthService auth)
     {
-        _auth    = auth;
-        _context = context;
+        _auth = auth;
     }
 
     [HttpPost("login")]
+    [EnableRateLimiting("auth")]
     public async Task<IActionResult> Login(LoginDto dto)
     {
         var result = await _auth.Login(dto.Username, dto.Password);
         if (result.token == null)
-            return Unauthorized("Credenciales incorrectas");
+            return Unauthorized(new { message = "No se pudo iniciar sesion." });
 
         var refreshToken = await _auth.GenerateRefreshToken(result.userId!);
 
         return Ok(new
         {
-            token        = result.token,
-            role         = result.role,
+            token = result.token,
+            role = result.role,
             refreshToken,
-            expiresIn    = 43200
+            expiresIn = 43200
         });
     }
 
     [AllowAnonymous]
     [HttpPost("refresh")]
+    [EnableRateLimiting("auth")]
     public async Task<IActionResult> Refresh([FromBody] RefreshTokenDto dto)
     {
         var result = await _auth.RefreshToken(dto.RefreshToken);
         if (result == null)
-            return Unauthorized("Refresh token inválido o expirado");
+            return Unauthorized(new { message = "La sesion no es valida o expiro." });
 
         return Ok(new
         {
-            token        = result.Token,
-            role         = result.Role,
+            token = result.Token,
+            role = result.Role,
             refreshToken = result.NewRefreshToken,
-            expiresIn    = 43200
+            expiresIn = 43200
         });
     }
 
@@ -63,12 +62,20 @@ public class AuthController : ControllerBase
         return NoContent();
     }
 
-    [Authorize(Roles = "admin")]
-    [HttpGet("test-mongo")]
-    public async Task<IActionResult> TestMongo()
+    [AllowAnonymous]
+    [HttpPost("recover-password")]
+    [EnableRateLimiting("auth")]
+    public async Task<IActionResult> RecoverPassword([FromBody] RecoverPasswordDto dto)
     {
-        var users = await _context.Users.Find(_ => true).ToListAsync();
-        return Ok(users.Count);
+        var recovered = await _auth.RecoverPassword(
+            dto.Username,
+            dto.NewPassword,
+            dto.RecoveryKey);
+
+        if (!recovered)
+            return Unauthorized(new { message = "No se pudo recuperar la cuenta." });
+
+        return NoContent();
     }
 
     [AllowAnonymous]

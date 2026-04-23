@@ -1,6 +1,8 @@
 using kdspro.Application.Services;
 using kdspro.Domain.Entities;
+using MongoDB.Bson;
 using MongoDB.Driver;
+using System.Text.RegularExpressions;
 
 namespace kdspro.Infrastructure.Persistence;
 
@@ -118,27 +120,74 @@ public static class DbSeeder
 
     public static async Task SeedUsers(IMongoCollection<User> users)
     {
-        var seedUsers = new List<User>
+        var seedUsers = new[]
         {
-            new() { Username = "admin", PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin_KDS_2026!"), Role = "admin" },
-            new() { Username = "gerente", PasswordHash = BCrypt.Net.BCrypt.HashPassword("Gerente2026!"), Role = "admin" },
-            new() { Username = "caja1", PasswordHash = BCrypt.Net.BCrypt.HashPassword("Caja2026!"), Role = "cashier" },
-            new() { Username = "kitchen1", PasswordHash = BCrypt.Net.BCrypt.HashPassword("chef2026"), Role = "kitchen" },
-            new() { Username = "kitchen2", PasswordHash = BCrypt.Net.BCrypt.HashPassword("preparador2026"), Role = "kitchen" },
-            new() { Username = "waiter1", PasswordHash = BCrypt.Net.BCrypt.HashPassword("waiter2026"), Role = "waiter" },
-            new() { Username = "Edwin", PasswordHash = BCrypt.Net.BCrypt.HashPassword("Edwin2026"), Role = "waiter" },
-            new() { Username = "waiter2", PasswordHash = BCrypt.Net.BCrypt.HashPassword("waiter22026"), Role = "waiter" },
-            new() { Username = "host1", PasswordHash = BCrypt.Net.BCrypt.HashPassword("host2026"), Role = "host" }
+            new { Username = "admin", Password = "Admin_KDS_2026!", Role = "admin" },
+            new { Username = "gerente", Password = "Gerente2026!", Role = "admin" },
+            new { Username = "caja1", Password = "Caja2026!", Role = "cashier" },
+            new { Username = "kitchen1", Password = "chef2026", Role = "kitchen" },
+            new { Username = "kitchen2", Password = "preparador2026", Role = "kitchen" },
+            new { Username = "waiter1", Password = "waiter2026", Role = "waiter" },
+            new { Username = "Edwin", Password = "Edwin2026", Role = "waiter" },
+            new { Username = "waiter2", Password = "waiter22026", Role = "waiter" },
+            new { Username = "host1", Password = "host2026", Role = "host" }
         };
 
-        foreach (var user in seedUsers)
+        foreach (var seedUser in seedUsers)
         {
-            var exists = await users.Find(existing => existing.Username == user.Username).AnyAsync();
-            if (!exists)
+            var usernameFilter = Builders<User>.Filter.Regex(
+                user => user.Username,
+                new BsonRegularExpression($"^\\s*{Regex.Escape(seedUser.Username)}\\s*$", "i"));
+
+            var existingUser = await users.Find(usernameFilter).FirstOrDefaultAsync();
+            if (existingUser == null)
             {
-                await users.InsertOneAsync(user);
+                await users.InsertOneAsync(new User
+                {
+                    Username = seedUser.Username,
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword(seedUser.Password),
+                    Role = seedUser.Role
+                });
+                continue;
+            }
+
+            var update = Builders<User>.Update
+                .Set(user => user.Username, seedUser.Username)
+                .Set(user => user.Role, seedUser.Role);
+
+            if (!PasswordMatches(existingUser.PasswordHash, seedUser.Password))
+            {
+                update = update.Set(
+                    user => user.PasswordHash,
+                    BCrypt.Net.BCrypt.HashPassword(seedUser.Password));
+            }
+
+            await users.UpdateOneAsync(
+                user => user.Id == existingUser.Id,
+                update);
+        }
+    }
+
+    private static bool PasswordMatches(string passwordHash, string password)
+    {
+        if (string.IsNullOrWhiteSpace(passwordHash)) return false;
+
+        if (passwordHash.StartsWith("$2a$", StringComparison.Ordinal) ||
+            passwordHash.StartsWith("$2b$", StringComparison.Ordinal) ||
+            passwordHash.StartsWith("$2x$", StringComparison.Ordinal) ||
+            passwordHash.StartsWith("$2y$", StringComparison.Ordinal))
+        {
+            try
+            {
+                return BCrypt.Net.BCrypt.Verify(password, passwordHash);
+            }
+            catch (BCrypt.Net.SaltParseException)
+            {
+                return false;
             }
         }
+
+        return string.Equals(passwordHash, password, StringComparison.Ordinal);
     }
 
     public static async Task SeedKdsSettings(IMongoCollection<KdsSettings> settingsCollection)

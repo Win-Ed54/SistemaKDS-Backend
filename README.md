@@ -27,6 +27,7 @@ Backend del sistema KDS para restaurantes, construido con .NET 8, MongoDB y Sign
 - `Waiter`: resumen y actividad diaria del mesero autenticado
 - `KdsSettings`: configuracion dinamica de limites operativos
 - `Users`: consultas auxiliares de usuarios por rol
+- `RecoverPassword`: recuperacion controlada de contraseña con llave de entorno
 
 ## Roles soportados
 
@@ -40,11 +41,14 @@ Backend del sistema KDS para restaurantes, construido con .NET 8, MongoDB y Sign
 
 - Acceso por roles
 - Pedidos en tiempo real con SignalR
+- Eventos SignalR segmentados por rol y por usuario
 - Control de stock y proteccion ante sobreventa concurrente
+- Calculo de precios de orden desde productos reales en base de datos
 - Flujo de estados: `Pending`, `Preparing`, `Ready`, `Delivered`, `Cancelled`
 - Cobro de ordenes entregadas
 - Control de limpieza y liberacion de mesas
 - Restriccion para que solo el mesero correspondiente pueda liberar la ultima mesa pagada que le pertenece
+- Pedidos para llevar con destino operativo (`TakeoutDestination`)
 - Configuracion KDS desde base de datos:
   - modo `quick-service`
   - modo `restaurant`
@@ -72,16 +76,103 @@ Eventos relevantes:
 - `OrderReadyForPickup`
 - `UpdateOrderStatus`
 
+### Segmentacion de eventos
+
+El hub ya no usa `Clients.All` para publicar datos operativos. Los eventos se distribuyen por grupo o por usuario:
+
+- `kitchen`, `admin`: ordenes nuevas, preparando, listas y canceladas.
+- `cashier`, `admin`: entregas, cobros y cancelaciones relevantes para caja.
+- `waiter`: solo recibe eventos de sus propias ordenes mediante `Clients.User(order.WaiterId)`.
+- `waiter`, `host`, `admin`, `cashier`: cambios de estado de mesas.
+- `waiter`, `admin`: actualizaciones de producto, stock y agotados.
+- `waiter`, `host`, `admin`, `cashier`: cambios de configuracion KDS.
+
+Esto reduce exposicion lateral: una pantalla conectada al hub no recibe datos que no necesita para operar.
+
+## Seguridad aplicada
+
+- JWT valida issuer, audience, lifetime y firma.
+- La llave JWT es obligatoria; en produccion debe ser un secreto real de al menos 32 bytes.
+- CORS en produccion usa `Cors:Origins` y no permite origenes arbitrarios.
+- Docker Compose queda en `ASPNETCORE_ENVIRONMENT=Production`.
+- Login y refresh usan rate limit.
+- Refresh tokens nuevos se guardan como hash SHA-256.
+- Mensajes de error de autenticacion son genericos.
+- Se elimino el endpoint de prueba `test-mongo`.
+- Se agregaron headers defensivos: `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`.
+- En produccion se activa HSTS.
+- Los usuarios de seed solo se crean o reparan cuando `Seed:DefaultUsers=true`.
+- Login normaliza usuario y rol para tolerar mayusculas/minusculas o espacios accidentales.
+- Roles de JWT y SignalR se normalizan antes de autorizar o unir conexiones a grupos.
+- Contraseñas antiguas en texto plano se migran a BCrypt solo despues de validar la contraseña correcta.
+- Existe recuperacion de contraseña con `Auth:RecoveryKey`, desactivada si no se configura la llave.
+- Los datos sensibles se esperan por variables de entorno, no en archivos versionados.
+
+## Produccion
+
+Variables recomendadas:
+
+- `MongoDbSettings__ConnectionString`
+- `MongoDbSettings__DatabaseName`
+- `Jwt__Key`
+- `Jwt__Issuer`
+- `Jwt__Audience`
+- `Cors__Origins__0`
+- `Seed__DefaultUsers=true` para produccion de prueba con usuarios seed
+- `Auth__RecoveryKey` solo si se necesita recuperar contraseñas manualmente
+
+Notas:
+
+- Para pruebas actuales de produccion, `docker-compose.yml` deja `Seed__DefaultUsers=true`.
+- Antes de exponer el sistema publicamente, cambiar contraseñas demo o apagar `Seed__DefaultUsers`.
+- Usar HTTPS delante de la API y del hub SignalR.
+- Configurar `PUBLIC_ORIGIN` en Docker para que coincida con el dominio real del frontend.
+
 ## Seed de datos
 
-El proyecto crea datos iniciales si la base esta vacia:
+El proyecto crea o repara datos iniciales cuando corresponde:
 
 - productos demo
 - mesas demo
 - usuarios demo
 - configuracion inicial del KDS
 
-Las cuentas de prueba del entorno local fueron omitidas de este documento por seguridad. Si se necesita trabajar con usuarios demo, deben configurarse localmente fuera del repositorio publico.
+### Usuarios seed
+
+Cuando `Seed__DefaultUsers=true`, el seeder:
+
+- crea usuarios faltantes
+- encuentra usuarios existentes aunque tengan mayusculas/minusculas distintas
+- normaliza `Username` y `Role`
+- repara la contraseña si no coincide con la contraseña seed esperada
+- no borra ordenes, mesas, productos ni datos operativos
+
+Las credenciales seed no se documentan aqui por seguridad. Si se necesitan para pruebas de produccion controlada, deben consultarse directamente en la configuracion interna del equipo o rotarse antes de exponer el sistema.
+
+Despues de cambiar `Seed__DefaultUsers` o actualizar `DbSeeder`, se debe reconstruir/reiniciar el backend para que el seed vuelva a correr.
+
+### Recuperacion de contraseña
+
+Endpoint:
+
+- `POST /api/auth/recover-password`
+
+Requiere configurar una llave fuerte:
+
+```env
+Auth__RecoveryKey=una_llave_larga_de_32_caracteres_minimo
+```
+
+Ejemplo:
+
+```powershell
+Invoke-RestMethod -Method Post `
+  -Uri "http://TU_HOST:5173/api/auth/recover-password" `
+  -ContentType "application/json" `
+  -Body '{"username":"usuario_a_recuperar","newPassword":"nueva_contraseña_segura","recoveryKey":"una_llave_larga_de_32_caracteres_minimo"}'
+```
+
+Si `Auth__RecoveryKey` no existe o no coincide, la recuperacion no modifica nada.
 
 ## Configuracion
 
@@ -117,10 +208,13 @@ Por defecto la API queda disponible en:
 
 En `kdspro/src/docker-compose.yml` existe soporte para levantar servicios del proyecto en contenedores.
 
+El compose usa variables de entorno para MongoDB, JWT, CORS y origen publico. No se deben escribir secretos reales en `appsettings.json`.
+
 ## Endpoints destacados
 
 - `POST /api/auth/login`
 - `POST /api/auth/refresh`
+- `POST /api/auth/recover-password`
 - `GET /api/orders/active`
 - `GET /api/orders/history`
 - `PATCH /api/orders/{id}/preparing`
@@ -146,5 +240,4 @@ dotnet build .\kdspro.Api\kdspro.Api.csproj -m:1
 ## Notas
 
 - El build actual compila correctamente.
-- Puede aparecer una advertencia nullable relacionada con configuracion del entorno en `Program.cs`; no bloquea la compilacion.
-- Antes de produccion conviene reemplazar datos de prueba, restringir origenes y administrar secretos fuera del repositorio.
+- Antes de produccion conviene rotar usuarios/contraseñas demo ya existentes y definir una llave JWT fuerte.

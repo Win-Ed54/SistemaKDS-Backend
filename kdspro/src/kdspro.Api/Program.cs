@@ -12,6 +12,8 @@ using System.Text;
 using Newtonsoft.Json.Serialization;
 using Microsoft.AspNetCore.SignalR;
 using System.Security.Claims;
+using Microsoft.AspNetCore.RateLimiting;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -32,17 +34,44 @@ builder.Services.AddSwaggerGen(options => {
     /* ... Tu configuración de Swagger actual es correcta ... */
 });
 
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddFixedWindowLimiter("auth", limiterOptions =>
+    {
+        limiterOptions.PermitLimit = builder.Environment.IsDevelopment() ? 20 : 8;
+        limiterOptions.Window = TimeSpan.FromMinutes(1);
+        limiterOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        limiterOptions.QueueLimit = 0;
+    });
+});
+
 // --- JWT AUTHENTICATION (Optimizado para SignalR) ---
+var jwtKey = builder.Configuration["Jwt:Key"];
+if (string.IsNullOrWhiteSpace(jwtKey))
+{
+    throw new InvalidOperationException("JWT Key not configured. Set Jwt__Key in the environment.");
+}
+
+if (!builder.Environment.IsDevelopment() &&
+    (Encoding.UTF8.GetByteCount(jwtKey) < 32 ||
+     jwtKey.StartsWith("DEV_ONLY_", StringComparison.OrdinalIgnoreCase)))
+{
+    throw new InvalidOperationException("JWT Key must be a production secret of at least 32 bytes.");
+}
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 .AddJwtBearer(options =>
 {
     options.TokenValidationParameters = new TokenValidationParameters
     {
-        ValidateIssuer = false,
-        ValidateAudience = false,
+        ValidateIssuer = true,
+        ValidIssuer = builder.Configuration["Jwt:Issuer"],
+        ValidateAudience = true,
+        ValidAudience = builder.Configuration["Jwt:Audience"],
         ValidateLifetime = true, // Es mejor validarlo para estabilidad real
         ValidateIssuerSigningKey = true,
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]))
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
+        ClockSkew = TimeSpan.FromMinutes(1)
     };
 
     options.Events = new JwtBearerEvents
@@ -56,6 +85,48 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             {
                 context.Token = accessToken;
             }
+            return Task.CompletedTask;
+        },
+        OnTokenValidated = context =>
+        {
+            if (context.Principal?.Identity is ClaimsIdentity identity)
+            {
+                var userId = identity.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                var sessionId = identity.FindFirst("sid")?.Value;
+
+                var roleClaims = identity.FindAll(ClaimTypes.Role).ToList();
+                foreach (var roleClaim in roleClaims)
+                {
+                    identity.RemoveClaim(roleClaim);
+                }
+
+                foreach (var role in roleClaims
+                    .Select(claim => claim.Value?.Trim().ToLowerInvariant())
+                    .Where(role => !string.IsNullOrWhiteSpace(role))
+                    .Distinct())
+                {
+                    identity.AddClaim(new Claim(ClaimTypes.Role, role!));
+                }
+
+                if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(sessionId))
+                {
+                    context.Fail("Session invalid");
+                    return Task.CompletedTask;
+                }
+
+                var userRepository = context.HttpContext.RequestServices.GetRequiredService<IUserRepository>();
+                return userRepository.GetById(userId).ContinueWith(task =>
+                {
+                    var user = task.Result;
+                    if (user == null ||
+                        string.IsNullOrWhiteSpace(user.CurrentSessionId) ||
+                        !string.Equals(user.CurrentSessionId, sessionId, StringComparison.Ordinal))
+                    {
+                        context.Fail("Session replaced");
+                    }
+                });
+            }
+
             return Task.CompletedTask;
         }
     };    
@@ -95,7 +166,7 @@ builder.Services.AddCors(options =>
         else
         {
             // En producción: solo tu dominio
-            policy.WithOrigins("https://kdstest.com")
+            policy.WithOrigins(allowedOrigins)
                   .AllowAnyHeader()
                   .AllowAnyMethod()
                   .AllowCredentials();
@@ -140,10 +211,25 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+else
+{
+    app.UseHsts();
+}
+
+app.Use(async (context, next) =>
+{
+    context.Response.Headers.TryAdd("X-Content-Type-Options", "nosniff");
+    context.Response.Headers.TryAdd("X-Frame-Options", "DENY");
+    context.Response.Headers.TryAdd("Referrer-Policy", "strict-origin-when-cross-origin");
+    context.Response.Headers.TryAdd("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+    await next();
+});
+
 app.UseStaticFiles();
 
 app.UseCors("AllowAll"); // CORS siempre antes de Auth
 
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -158,7 +244,10 @@ using (var scope = app.Services.CreateScope())
         var context = services.GetRequiredService<MongoDbContext>();
         await DbSeeder.SeedProducts(context.Products);
         await DbSeeder.SeedTables(context.Tables);
-        await DbSeeder.SeedUsers(context.Users);
+        if (app.Environment.IsDevelopment() || builder.Configuration.GetValue<bool>("Seed:DefaultUsers"))
+        {
+            await DbSeeder.SeedUsers(context.Users);
+        }
         await DbSeeder.SeedKdsSettings(context.KdsSettings);
         Console.WriteLine(">>> Datos inicializados correctamente");
     } catch (Exception ex) {

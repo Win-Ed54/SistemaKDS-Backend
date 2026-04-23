@@ -9,6 +9,12 @@ namespace kdspro.Application.Services;
 public class OrderService : IOrderService
 {
     private const decimal TaxRate = 0.13m;
+    private static readonly string[] AllowedTakeoutDestinations =
+    {
+        "Mostrador",
+        "Autoservicio",
+        "Delivery",
+    };
     private readonly IOrderRepository _orderRepository;
     private readonly IProductRepository _productRepository;
     private readonly ITableRepository _tableRepository;
@@ -33,6 +39,7 @@ public class OrderService : IOrderService
     {
         var settings = await _settingsService.GetAsync();
         var normalizedCustomerName = (dto.CustomerName ?? string.Empty).Trim();
+        var normalizedTakeoutDestination = (dto.TakeoutDestination ?? string.Empty).Trim();
         var requiresTakeoutPrepayment = dto.TableNumber == 0 && settings.TakeoutRequirePrepayment;
 
         if (dto.Items == null || dto.Items.Count == 0)
@@ -40,6 +47,17 @@ public class OrderService : IOrderService
 
         if (dto.TableNumber == 0 && settings.RequireCustomerNameForTakeout && string.IsNullOrWhiteSpace(normalizedCustomerName))
             throw new InvalidOperationException("El nombre del cliente es obligatorio para pedidos para llevar.");
+
+        if (normalizedCustomerName.Length > 80)
+            throw new InvalidOperationException("El nombre del cliente no puede exceder 80 caracteres.");
+
+        if (normalizedTakeoutDestination.Length > 80)
+            throw new InvalidOperationException("El destino para llevar no puede exceder 80 caracteres.");
+
+        if (dto.TableNumber == 0)
+        {
+            normalizedTakeoutDestination = NormalizeTakeoutDestination(normalizedTakeoutDestination);
+        }
 
         if (dto.Items.Count > settings.MaxDistinctItems)
             throw new InvalidOperationException($"Maximo {settings.MaxDistinctItems} productos distintos por orden.");
@@ -51,20 +69,25 @@ public class OrderService : IOrderService
         var invalidItem = dto.Items.FirstOrDefault(item =>
             string.IsNullOrWhiteSpace(item.ProductId) ||
             item.Quantity < 1 ||
-            item.Quantity > settings.MaxQuantityPerProduct
+            item.Quantity > settings.MaxQuantityPerProduct ||
+            (item.Notes?.Length ?? 0) > 200
         );
 
         if (invalidItem != null)
             throw new InvalidOperationException($"{invalidItem.ProductName}: maximo {settings.MaxQuantityPerProduct} unidades por producto.");
 
+        var productsById = new Dictionary<string, Product>();
+
         foreach (var item in dto.Items)
         {
             var product = await _productRepository.GetByIdAsync(item.ProductId);
-            if (product == null || product.Stock < item.Quantity)
+            if (product == null || product.Stock < item.Quantity || product.Price < 0)
             {
                 await _notificationService.NotifyProductOutOfStock(item.ProductId);
                 throw new Exception($"Stock insuficiente para: {item.ProductName}. Disponible: {product?.Stock ?? 0}");
             }
+
+            productsById[item.ProductId] = product;
         }
 
         var updatedStocks = new Dictionary<string, int>();
@@ -87,7 +110,7 @@ public class OrderService : IOrderService
             }
         }
 
-        var grossTotal = dto.Items.Sum(i => i.Price * i.Quantity);
+        var grossTotal = dto.Items.Sum(i => productsById[i.ProductId].Price * i.Quantity);
         var taxableAmount = grossTotal <= 0
             ? 0
             : Math.Round(grossTotal / (1 + TaxRate), 2, MidpointRounding.AwayFromZero);
@@ -100,6 +123,7 @@ public class OrderService : IOrderService
             CorrelativeCode = $"ORD-{correlativeNumber:000000}",
             TableNumber = dto.TableNumber,
             CustomerName = string.IsNullOrWhiteSpace(normalizedCustomerName) ? "GENERAL" : normalizedCustomerName,
+            TakeoutDestination = dto.TableNumber == 0 ? normalizedTakeoutDestination : string.Empty,
             WaiterId = userId,
             WaiterName = username,
             TaxableAmount = taxableAmount,
@@ -109,10 +133,10 @@ public class OrderService : IOrderService
             Items = dto.Items.Select(i => new OrderItem
             {
                 ProductId = i.ProductId,
-                ProductName = i.ProductName,
-                UnitPrice = i.Price,
+                ProductName = productsById[i.ProductId].Name,
+                UnitPrice = productsById[i.ProductId].Price,
                 Quantity = i.Quantity,
-                Notes = i.Notes ?? ""
+                Notes = (i.Notes ?? string.Empty).Trim()
             }).ToList()
         };
 
@@ -442,6 +466,26 @@ public class OrderService : IOrderService
             .Select(MapToDto)
             .ToList();
 
+    private static string NormalizeTakeoutDestination(string destination)
+    {
+        if (string.IsNullOrWhiteSpace(destination)) return AllowedTakeoutDestinations[0];
+
+        if (destination.Trim().StartsWith("Mesa ", StringComparison.OrdinalIgnoreCase) &&
+            int.TryParse(destination.Trim()[5..], out var tableNumber) &&
+            tableNumber > 0)
+        {
+            return $"Mesa {tableNumber}";
+        }
+
+        var allowedDestination = AllowedTakeoutDestinations.FirstOrDefault(
+            item => string.Equals(item, destination.Trim(), StringComparison.OrdinalIgnoreCase));
+
+        if (allowedDestination == null)
+            throw new InvalidOperationException("El destino para llevar debe ser Mostrador, Autoservicio, Delivery o una mesa valida.");
+
+        return allowedDestination;
+    }
+
     private static OrderDto MapToDto(Order order) => new()
     {
         Id = order.Id!,
@@ -449,6 +493,7 @@ public class OrderService : IOrderService
         CorrelativeNumber = order.CorrelativeNumber,
         CorrelativeCode = order.CorrelativeCode,
         CustomerName = order.CustomerName,
+        TakeoutDestination = order.TakeoutDestination,
         WaiterId = order.WaiterId,
         WaiterName = order.WaiterName,
         PreparedByName = order.PreparedByName,

@@ -16,6 +16,7 @@ public static class OrderMapping
         {
             TableNumber = dto.TableNumber,
             CustomerName = dto.CustomerName,
+            TakeoutDestination = dto.TakeoutDestination,
             WaiterName = dto.WaiterName,
             Status = OrderStatus.Pending,
             CreatedAt = DateTime.UtcNow,
@@ -39,6 +40,7 @@ public static class OrderMapping
             Id = order.Id!,
             TableNumber = order.TableNumber,
             CustomerName = order.CustomerName,
+            TakeoutDestination = order.TakeoutDestination,
             WaiterName = order.WaiterName,
             Status = order.Status,
             CreatedAt = order.CreatedAt,

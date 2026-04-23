@@ -230,7 +230,7 @@ public class TablesController : ControllerBase
     public async Task<IActionResult> StartCleaning(int tableNumber, [FromBody] StartTableCleaningDto dto)
     {
         var estimatedCleaningMinutes = dto.EstimatedCleaningMinutes <= 0 ? 8 : dto.EstimatedCleaningMinutes;
-        var role = User.FindFirstValue(ClaimTypes.Role) ?? string.Empty;
+        var role = User.FindFirstValue(ClaimTypes.Role)?.Trim().ToLowerInvariant() ?? string.Empty;
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty;
         var username = User.FindFirstValue(ClaimTypes.Name) ?? User.Identity?.Name ?? string.Empty;
 

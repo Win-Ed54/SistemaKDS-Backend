@@ -32,13 +32,22 @@ public class AuthService
         if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
             return (null, null, null);
 
-        var user = await _users.GetByUsername(username);
+        var normalizedUsername = username.Trim();
+        var user = await _users.GetByUsername(normalizedUsername);
         if (user == null) return (null, null, null);
 
-        if (!BCrypt.Net.BCrypt.Verify(password, user.PasswordHash))
+        var isValidPassword = await VerifyPassword(user, password);
+        if (!isValidPassword)
             return (null, null, null);
 
-        return (GenerateToken(user), user.Role, user.Id);
+        var sessionId = Guid.NewGuid().ToString("N");
+        await _users.UpdateCurrentSessionId(user.Id, sessionId);
+        await RevokeAllRefreshTokens(user.Id);
+        user.CurrentSessionId = sessionId;
+
+        var role = NormalizeRole(user.Role);
+
+        return (GenerateToken(user), role, user.Id);
     }
 
     private string GenerateToken(User user)
@@ -53,7 +62,8 @@ public class AuthService
         {
             new Claim(ClaimTypes.NameIdentifier, user.Id!),
             new Claim(ClaimTypes.Name,           user.Username),
-            new Claim(ClaimTypes.Role,           user.Role),
+            new Claim(ClaimTypes.Role,           NormalizeRole(user.Role)),
+            new Claim("sid",                     user.CurrentSessionId ?? string.Empty),
         };
 
         var token = new JwtSecurityToken(
@@ -69,20 +79,29 @@ public class AuthService
 
     public async Task<string> GenerateRefreshToken(string userId)
     {
+        var user = await _users.GetById(userId);
+        if (user == null || string.IsNullOrWhiteSpace(user.CurrentSessionId))
+            throw new InvalidOperationException("User session not initialized.");
+
+        var rawToken = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
         var token = new RefreshToken
         {
-            UserId  = userId,
-            Token   = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64)),
+            UserId = userId,
+            SessionId = user.CurrentSessionId,
+            Token = HashRefreshToken(rawToken),
             Expires = DateTime.UtcNow.AddDays(7),
         };
         await _refreshTokens.InsertOneAsync(token);
-        return token.Token;
+        return rawToken;
     }
 
     public async Task<RefreshResult?> RefreshToken(string refreshToken)
     {
+        if (string.IsNullOrWhiteSpace(refreshToken)) return null;
+
+        var tokenHash = HashRefreshToken(refreshToken);
         var stored = await _refreshTokens
-            .Find(t => t.Token == refreshToken)
+            .Find(t => t.Token == tokenHash || t.Token == refreshToken)
             .FirstOrDefaultAsync();
 
         if (stored == null || !stored.IsActive) return null;
@@ -90,6 +109,9 @@ public class AuthService
         // Buscar usuario por su Id guardado en el refresh token
         var user = await _users.GetById(stored.UserId);
         if (user == null) return null;
+        if (string.IsNullOrWhiteSpace(user.CurrentSessionId)) return null;
+        if (!string.Equals(stored.SessionId, user.CurrentSessionId, StringComparison.Ordinal))
+            return null;
 
         // Revocar token viejo
         await _refreshTokens.UpdateOneAsync(
@@ -100,15 +122,105 @@ public class AuthService
         var newJwt          = GenerateToken(user);
         var newRefreshToken = await GenerateRefreshToken(user.Id!);
 
-        return new RefreshResult(newJwt, user.Role, newRefreshToken);
+        return new RefreshResult(newJwt, NormalizeRole(user.Role), newRefreshToken);
     }
 
     public async Task RevokeRefreshToken(string refreshToken)
     {
+        if (string.IsNullOrWhiteSpace(refreshToken)) return;
+
+        var tokenHash = HashRefreshToken(refreshToken);
         await _refreshTokens.UpdateOneAsync(
-            Builders<RefreshToken>.Filter.Eq(t => t.Token,      refreshToken),
+            Builders<RefreshToken>.Filter.Or(
+                Builders<RefreshToken>.Filter.Eq(t => t.Token, tokenHash),
+                Builders<RefreshToken>.Filter.Eq(t => t.Token, refreshToken)),
             Builders<RefreshToken>.Update.Set(t => t.IsRevoked, true)
         );
+    }
+
+    public async Task RevokeAllRefreshTokens(string userId)
+    {
+        if (string.IsNullOrWhiteSpace(userId)) return;
+
+        await _refreshTokens.UpdateManyAsync(
+            Builders<RefreshToken>.Filter.Eq(token => token.UserId, userId),
+            Builders<RefreshToken>.Update.Set(token => token.IsRevoked, true));
+    }
+
+    public async Task<bool> RecoverPassword(string username, string newPassword, string recoveryKey)
+    {
+        if (string.IsNullOrWhiteSpace(username) ||
+            string.IsNullOrWhiteSpace(newPassword) ||
+            string.IsNullOrWhiteSpace(recoveryKey))
+            return false;
+
+        var configuredRecoveryKey = _configuration["Auth:RecoveryKey"];
+        if (!IsValidRecoveryKey(configuredRecoveryKey, recoveryKey))
+            return false;
+
+        var user = await _users.GetByUsername(username.Trim());
+        if (user == null) return false;
+
+        await _users.UpdatePasswordHash(user.Id, BCrypt.Net.BCrypt.HashPassword(newPassword));
+        return true;
+    }
+
+    private static string HashRefreshToken(string refreshToken)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(refreshToken));
+        return Convert.ToBase64String(bytes);
+    }
+
+    private static bool IsValidRecoveryKey(string? configuredRecoveryKey, string providedRecoveryKey)
+    {
+        if (string.IsNullOrWhiteSpace(configuredRecoveryKey) ||
+            configuredRecoveryKey.Length < 32 ||
+            string.IsNullOrWhiteSpace(providedRecoveryKey))
+            return false;
+
+        var configuredBytes = Encoding.UTF8.GetBytes(configuredRecoveryKey);
+        var providedBytes = Encoding.UTF8.GetBytes(providedRecoveryKey);
+
+        return configuredBytes.Length == providedBytes.Length &&
+               CryptographicOperations.FixedTimeEquals(configuredBytes, providedBytes);
+    }
+
+    private async Task<bool> VerifyPassword(User user, string password)
+    {
+        if (string.IsNullOrWhiteSpace(user.PasswordHash)) return false;
+
+        if (IsBCryptHash(user.PasswordHash))
+        {
+            try
+            {
+                return BCrypt.Net.BCrypt.Verify(password, user.PasswordHash);
+            }
+            catch (BCrypt.Net.SaltParseException)
+            {
+                return false;
+            }
+        }
+
+        if (!string.Equals(user.PasswordHash, password, StringComparison.Ordinal))
+            return false;
+
+        await _users.UpdatePasswordHash(user.Id, BCrypt.Net.BCrypt.HashPassword(password));
+        return true;
+    }
+
+    private static bool IsBCryptHash(string passwordHash)
+    {
+        return passwordHash.StartsWith("$2a$", StringComparison.Ordinal) ||
+               passwordHash.StartsWith("$2b$", StringComparison.Ordinal) ||
+               passwordHash.StartsWith("$2x$", StringComparison.Ordinal) ||
+               passwordHash.StartsWith("$2y$", StringComparison.Ordinal);
+    }
+
+    private static string NormalizeRole(string role)
+    {
+        return string.IsNullOrWhiteSpace(role)
+            ? string.Empty
+            : role.Trim().ToLowerInvariant();
     }
 }
 

@@ -7,6 +7,8 @@ public class CreateOrderDto
 
     public string CustomerName { get; set; } = "";
 
+    public string TakeoutDestination { get; set; } = "";
+
     public string WaiterName { get; set; } = "";
 
     public List<CreateOrderItemDto> Items { get; set; } =new ();

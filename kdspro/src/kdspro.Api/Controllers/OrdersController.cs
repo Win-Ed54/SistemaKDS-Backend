@@ -27,7 +27,7 @@ public class OrdersController : ControllerBase
     {
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         var username = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value;
-        var role = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? string.Empty;
+        var role = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value?.Trim().ToLowerInvariant() ?? string.Empty;
 
         try
         {
@@ -175,7 +175,14 @@ public class OrdersController : ControllerBase
     {
         try
         {
-            var orders = await _orderService.GetWaiterOrdersToday(waiterName);
+            var role = User.FindFirstValue(ClaimTypes.Role)?.Trim().ToLowerInvariant() ?? string.Empty;
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty;
+            var lookupValue = role == "waiter" ? userId : waiterName;
+
+            if (string.IsNullOrWhiteSpace(lookupValue))
+                return Unauthorized();
+
+            var orders = await _orderService.GetWaiterOrdersToday(lookupValue);
             return Ok(orders);
         }
         catch (Exception ex)
@@ -190,7 +197,7 @@ public class OrdersController : ControllerBase
     {
         try
         {
-            var role = User.FindFirstValue(ClaimTypes.Role) ?? string.Empty;
+            var role = User.FindFirstValue(ClaimTypes.Role)?.Trim().ToLowerInvariant() ?? string.Empty;
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty;
             var username = User.FindFirstValue(ClaimTypes.Name) ?? User.Identity?.Name ?? string.Empty;
             var table = await _tableRepository.GetByNumberAsync(tableNumber);

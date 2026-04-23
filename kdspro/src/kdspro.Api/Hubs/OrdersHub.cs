@@ -15,7 +15,7 @@ public class OrdersHub : Hub
 
     public override async Task OnConnectedAsync()
     {
-        var role = Context.User?.FindFirst(ClaimTypes.Role)?.Value;
+        var role = Context.User?.FindFirst(ClaimTypes.Role)?.Value?.Trim().ToLowerInvariant();
 
         if (role == "kitchen")
         {
