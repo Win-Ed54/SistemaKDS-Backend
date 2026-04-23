@@ -40,6 +40,7 @@ Backend del sistema KDS para restaurantes, construido con .NET 8, MongoDB y Sign
 ## Funcionalidad implementada
 
 - Acceso por roles
+- Sesion unica por usuario con invalidacion de sesiones anteriores
 - Pedidos en tiempo real con SignalR
 - Eventos SignalR segmentados por rol y por usuario
 - Control de stock y proteccion ante sobreventa concurrente
@@ -104,6 +105,8 @@ Esto reduce exposicion lateral: una pantalla conectada al hub no recibe datos qu
 - Los usuarios de seed solo se crean o reparan cuando `Seed:DefaultUsers=true`.
 - Login normaliza usuario y rol para tolerar mayusculas/minusculas o espacios accidentales.
 - Roles de JWT y SignalR se normalizan antes de autorizar o unir conexiones a grupos.
+- Cada login genera un `sid` nuevo; requests autenticados y SignalR validan que la sesion del token siga siendo la activa.
+- Los refresh tokens quedan ligados a la sesion activa y se revocan al iniciar una nueva sesion.
 - Contraseñas antiguas en texto plano se migran a BCrypt solo despues de validar la contraseña correcta.
 - Existe recuperacion de contraseña con `Auth:RecoveryKey`, desactivada si no se configura la llave.
 - Los datos sensibles se esperan por variables de entorno, no en archivos versionados.
@@ -127,6 +130,7 @@ Notas:
 - Antes de exponer el sistema publicamente, cambiar contraseñas demo o apagar `Seed__DefaultUsers`.
 - Usar HTTPS delante de la API y del hub SignalR.
 - Configurar `PUBLIC_ORIGIN` en Docker para que coincida con el dominio real del frontend.
+- Si un usuario inicia sesion en otro navegador o equipo, la sesion anterior queda invalida para evitar ordenes paralelas con el mismo operador.
 
 ## Seed de datos
 
