@@ -8,7 +8,7 @@ namespace kdspro.Infrastructure.Persistence;
 
 public static class DbSeeder
 {
-    private const int DefaultProductStock = 50;
+    private const int DefaultProductStock = 100;
 
     public static async Task SeedProducts(IMongoCollection<Product> collection)
     {
