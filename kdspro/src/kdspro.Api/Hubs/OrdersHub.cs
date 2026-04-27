@@ -7,6 +7,15 @@ namespace kdspro.Api.Hubs;
 [Authorize]
 public class OrdersHub : Hub
 {
+    private static readonly HashSet<string> AllowedRoles = new(StringComparer.OrdinalIgnoreCase)
+    {
+        KitchenGroup,
+        WaiterGroup,
+        HostGroup,
+        AdminGroup,
+        CashierGroup,
+    };
+
     private const string KitchenGroup = "kitchen";
     private const string WaiterGroup = "waiter";
     private const string HostGroup = "host";
@@ -16,6 +25,12 @@ public class OrdersHub : Hub
     public override async Task OnConnectedAsync()
     {
         var role = Context.User?.FindFirst(ClaimTypes.Role)?.Value?.Trim().ToLowerInvariant();
+
+        if (string.IsNullOrWhiteSpace(role) || !AllowedRoles.Contains(role))
+        {
+            Context.Abort();
+            return;
+        }
 
         if (role == "kitchen")
         {

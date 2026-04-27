@@ -24,7 +24,7 @@ services:
     container_name: kds-backend
     restart: always
     ports:
-      - "5162:8080"
+      - "127.0.0.1:5162:8080"
     depends_on:
       mongodb:
         condition: service_healthy
@@ -36,7 +36,7 @@ services:
       - Jwt__Issuer=kds-api
       - Jwt__Audience=kds-client
       - Cors__Origins__0=${PUBLIC_ORIGIN:-http://localhost:5173}
-      - Seed__DefaultUsers=true
+      - Seed__DefaultUsers=${SEED_DEFAULT_USERS:-false}
     networks:
       - kds-network
 

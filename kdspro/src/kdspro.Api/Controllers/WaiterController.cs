@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace kdspro.Api.Controllers;
 
-[Authorize] // Solo usuarios con token válido pueden entrar
+[Authorize(Roles = "waiter,admin")]
 [ApiController]
 [Route("api/[controller]")]
 public class WaiterController : ControllerBase

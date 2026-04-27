@@ -87,12 +87,6 @@ public class OrderRepository : GenericRepository<Order>, IOrderRepository
         return await _collection.Find(filter).SortBy(o => o.CreatedAt).ToListAsync(ct);
     }
 
-    public async Task<List<Order>> GetReadyOrdersAsync(CancellationToken ct = default)
-    {
-        var filter = Builders<Order>.Filter.Eq(o => o.Status, OrderStatus.Ready);
-        return await _collection.Find(filter).SortBy(o => o.ReadyAt).ToListAsync(ct);
-    }
-
     public async Task<List<Order>> GetHistoryAsync(CancellationToken ct = default)
     {
         var filter = Builders<Order>.Filter.In(o => o.Status, new[]

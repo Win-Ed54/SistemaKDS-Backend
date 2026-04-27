@@ -460,12 +460,6 @@ public class OrderService : IOrderService
             .Select(MapToDto)
             .ToList();
 
-    public async Task<List<OrderDto>> GetReadyOrders() =>
-        (await _orderRepository.GetActiveOrdersAsync())
-            .Where(o => o.Status == OrderStatus.Ready)
-            .Select(MapToDto)
-            .ToList();
-
     private static string NormalizeTakeoutDestination(string destination)
     {
         if (string.IsNullOrWhiteSpace(destination)) return AllowedTakeoutDestinations[0];

@@ -10,7 +10,6 @@ public interface IOrderService
     Task<OrderDto?> GetOrderById(string id);
     Task<List<OrderDto>> GetMyOrders(string userId);
     Task<List<OrderDto>> GetActiveOrders();
-    Task<List<OrderDto>> GetReadyOrders();
     Task<List<OrderDto>> GetHistory();
     Task<WaiterSummaryDto> GetWaiterSummary(string userId, string username);
     Task<IEnumerable<OrderDto>> GetWaiterOrdersToday(string waiterId);

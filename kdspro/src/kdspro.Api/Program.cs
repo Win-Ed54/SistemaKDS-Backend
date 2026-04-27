@@ -2,6 +2,7 @@ using kdspro.Domain.Interfaces;
 using kdspro.Infrastructure.Repositories;
 using kdspro.Infrastructure.Persistence;
 using kdspro.Api.Hubs;
+using kdspro.Api.Middleware;
 using kdspro.Application.Services;
 using kdspro.Application.Interfaces;
 using MongoDB.Driver;
@@ -216,16 +217,27 @@ else
     app.UseHsts();
 }
 
+// --- SECURITY HEADERS MIDDLEWARE ---
 app.Use(async (context, next) =>
 {
     context.Response.Headers.TryAdd("X-Content-Type-Options", "nosniff");
     context.Response.Headers.TryAdd("X-Frame-Options", "DENY");
     context.Response.Headers.TryAdd("Referrer-Policy", "strict-origin-when-cross-origin");
     context.Response.Headers.TryAdd("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+    
+    // CSP Header para mitigación de XSS
+    var cspHeader = app.Environment.IsDevelopment()
+        ? "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:"
+        : "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:";
+    
+    context.Response.Headers.TryAdd("Content-Security-Policy", cspHeader);
     await next();
 });
 
 app.UseStaticFiles();
+
+// --- GLOBAL EXCEPTION HANDLER ---
+app.UseGlobalExceptionHandler();
 
 app.UseCors("AllowAll"); // CORS siempre antes de Auth
 

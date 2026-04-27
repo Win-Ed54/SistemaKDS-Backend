@@ -121,13 +121,13 @@ Variables recomendadas:
 - `Jwt__Issuer`
 - `Jwt__Audience`
 - `Cors__Origins__0`
-- `Seed__DefaultUsers=true` para produccion de prueba con usuarios seed
+- `Seed__DefaultUsers=false` por defecto; usar `true` solo en pruebas controladas
 - `Auth__RecoveryKey` solo si se necesita recuperar contraseñas manualmente
 
 Notas:
 
-- Para pruebas actuales de produccion, `docker-compose.yml` deja `Seed__DefaultUsers=true`.
-- Antes de exponer el sistema publicamente, cambiar contraseñas demo o apagar `Seed__DefaultUsers`.
+- `docker-compose.yml` lee `SEED_DEFAULT_USERS` y por defecto no crea/repara usuarios demo en Production.
+- Antes de exponer el sistema publicamente, cambiar contraseñas demo y mantener `SEED_DEFAULT_USERS=false`.
 - Usar HTTPS delante de la API y del hub SignalR.
 - Configurar `PUBLIC_ORIGIN` en Docker para que coincida con el dominio real del frontend.
 - Si un usuario inicia sesion en otro navegador o equipo, la sesion anterior queda invalida para evitar ordenes paralelas con el mismo operador.
@@ -213,6 +213,8 @@ Por defecto la API queda disponible en:
 En `kdspro/src/docker-compose.yml` existe soporte para levantar servicios del proyecto en contenedores.
 
 El compose usa variables de entorno para MongoDB, JWT, CORS y origen publico. No se deben escribir secretos reales en `appsettings.json`.
+
+Por seguridad, el puerto directo de la API queda publicado solo en `127.0.0.1:5162`. Las pantallas deben entrar por el frontend/Nginx, que hace proxy a `/api`, `/images` y `/ordersHub`.
 
 ## Endpoints destacados
 
