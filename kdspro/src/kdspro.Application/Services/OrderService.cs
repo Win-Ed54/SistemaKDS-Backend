@@ -152,7 +152,11 @@ public class OrderService : IOrderService
 
         var resultDto = MapToDto(order);
 
-        if (!requiresTakeoutPrepayment)
+        if (requiresTakeoutPrepayment)
+        {
+            await _notificationService.NotifyPendingPrepaymentOrder(resultDto);
+        }
+        else
         {
             await _notificationService.NotifyNewOrder(resultDto);
         }

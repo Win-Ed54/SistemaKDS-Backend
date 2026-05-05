@@ -10,6 +10,7 @@ public interface IOrderNotificationService
     // ----------------------------
 
     Task NotifyNewOrder(OrderDto order);
+    Task NotifyPendingPrepaymentOrder(OrderDto order);
 
     Task NotifyOrderPreparing(OrderDto order);
 

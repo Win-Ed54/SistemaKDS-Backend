@@ -24,6 +24,12 @@ public class OrderNotificationService : IOrderNotificationService
         await _hubContext.Clients.Groups(KitchenOrderGroups).SendAsync("OrderCreated", order);
     }
 
+    public async Task NotifyPendingPrepaymentOrder(OrderDto order)
+    {
+        await _hubContext.Clients.Groups(BackOfficeGroups).SendAsync("ordercreatedforpayment", order);
+        await _hubContext.Clients.Groups(BackOfficeGroups).SendAsync("OrderCreatedForPayment", order);
+    }
+
     public async Task NotifyOrderPreparing(OrderDto order)
     {
         await _hubContext.Clients.Groups(KitchenOrderGroups).SendAsync("orderpreparing", order);
