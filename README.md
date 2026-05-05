@@ -48,9 +48,13 @@ Esta API centraliza autenticacion, pedidos, stock, mesas, configuracion operativ
 - flujo de estados `Pending`, `Preparing`, `Ready`, `Delivered`, `Cancelled`
 - cobro de ordenes
 - prepago para llevar opcional
+- notificacion en tiempo real a caja cuando aparece un pedido pendiente de prepago
 - limpieza y liberacion de mesas
 - restriccion para que el cierre de limpieza respete al mesero responsable
 - configuracion dinamica del KDS
+- asignacion de mesas con mesero responsable
+- transferencia de mesas segun reglas operativas
+- validaciones para host, mesero, caja, cocina y admin segun el flujo
 
 ## Flujo de pedidos para llevar
 
@@ -67,6 +71,7 @@ Esta API centraliza autenticacion, pedidos, stock, mesas, configuracion operativ
 - cuando una mesa pagada entra en limpieza, queda bloqueada para nuevas ordenes
 - al terminar limpieza, la mesa se libera y se limpia su estado operativo
 - los cambios de mesa se notifican por SignalR para host, admin, caja y mesero
+- admin puede intervenir para liberar mesas segun el estado real del flujo
 
 ## Hub en tiempo real
 
@@ -97,6 +102,19 @@ El hub distribuye eventos por grupo o por usuario:
 - `waiter`: eventos de sus propias ordenes mediante `Clients.User`
 - `waiter`, `host`, `admin`, `cashier`: cambios de estado de mesas
 - `waiter`, `admin`: stock y productos agotados
+
+## Seguridad implementada
+
+El backend ya incorpora medidas de seguridad y endurecimiento operativo. Aqui solo se mencionan a nivel general:
+
+- autenticacion con tokens
+- autorizacion por rol
+- sesion unica por usuario
+- validacion de sesion activa en requests y SignalR
+- segmentacion de eventos en tiempo real
+- manejo de configuracion por entorno
+- proteccion del flujo de autenticacion
+- despliegue pensado para no exponer servicios internos innecesariamente
 
 ## Configuracion
 
