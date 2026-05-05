@@ -43,10 +43,12 @@ Backend del sistema KDS para restaurantes, construido con .NET 8, MongoDB y Sign
 - Sesion unica por usuario con invalidacion de sesiones anteriores
 - Pedidos en tiempo real con SignalR
 - Eventos SignalR segmentados por rol y por usuario
+- Flujo pensado para que cocina, caja, host, admin y mesero se mantengan actualizados sin `F5`
 - Control de stock y proteccion ante sobreventa concurrente
 - Calculo de precios de orden desde productos reales en base de datos
 - Flujo de estados: `Pending`, `Preparing`, `Ready`, `Delivered`, `Cancelled`
 - Cobro de ordenes entregadas
+- Prepago para llevar opcional: las ordenes `tableNumber = 0` pueden requerir pago completo o parcial antes de entrar a cocina
 - Control de limpieza y liberacion de mesas
 - Restriccion para que solo el mesero correspondiente pueda liberar la ultima mesa pagada que le pertenece
 - Pedidos para llevar con destino operativo (`TakeoutDestination`)
@@ -87,6 +89,7 @@ El hub ya no usa `Clients.All` para publicar datos operativos. Los eventos se di
 - `waiter`, `host`, `admin`, `cashier`: cambios de estado de mesas.
 - `waiter`, `admin`: actualizaciones de producto, stock y agotados.
 - `waiter`, `host`, `admin`, `cashier`: cambios de configuracion KDS.
+- Cuando el prepago para llevar queda completo, el backend publica la orden a cocina mediante `receiveorder`.
 
 Esto reduce exposicion lateral: una pantalla conectada al hub no recibe datos que no necesita para operar.
 
