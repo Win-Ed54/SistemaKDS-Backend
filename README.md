@@ -63,6 +63,7 @@ Esta API centraliza autenticacion, pedidos, stock, mesas, configuracion operativ
 - si el prepago para llevar esta desactivado, la orden entra a cocina de inmediato
 - si el prepago para llevar esta activado, la orden aparece primero en caja
 - cuando caja completa el pago, el backend publica la orden a cocina
+- con prepago activo, el seguimiento en caja debe tratar esas ordenes como flujo de prepago y no como cobro normal de ordenes entregadas
 
 ## Flujo de mesas y limpieza
 
@@ -99,7 +100,7 @@ El hub distribuye eventos por grupo o por usuario:
 
 - `kitchen`, `admin`: ordenes nuevas y cambios de estado de cocina
 - `cashier`, `admin`: entregas, cobros y pendientes de prepago
-- `waiter`: eventos de sus propias ordenes mediante `Clients.User`
+- `waiter`: eventos de sus propias ordenes mediante `Clients.User`, incluyendo aviso directo cuando una orden pasa a `Ready`
 - `waiter`, `host`, `admin`, `cashier`: cambios de estado de mesas
 - `waiter`, `admin`: stock y productos agotados
 
@@ -195,4 +196,5 @@ dotnet build .\kdspro.Api\kdspro.Api.csproj -m:1
 ## Notas
 
 - El backend esta pensado para mantener sincronizadas las pantallas operativas sin recarga manual.
+- El flujo de tiempo real hacia mesero depende de `WaiterId` y `ClaimTypes.NameIdentifier`, no de nombres hardcodeados por usuario.
 - La documentacion evita exponer secretos, credenciales de prueba o configuracion sensible del entorno.
