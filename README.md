@@ -149,11 +149,22 @@ Acceso local por defecto:
 
 En `kdspro/src/docker-compose.yml` existe soporte para levantar los servicios del proyecto.
 
+Comando recomendado:
+
+```powershell
+docker compose up -d --build
+```
+
 El frontend entra por proxy a:
 
 - `/api`
 - `/images`
 - `/ordersHub`
+
+Notas de integracion:
+
+- El `docker-compose.yml` construye el frontend desde `Sistema-KDS-Kitchen-Display-System-para-restaurantes---Frontend`.
+- Ese frontend ahora usa `pnpm`; el `Dockerfile` del frontend ya instala con `pnpm install --frozen-lockfile`, por lo que no requiere `npm ci`.
 
 ## Endpoints destacados
 
