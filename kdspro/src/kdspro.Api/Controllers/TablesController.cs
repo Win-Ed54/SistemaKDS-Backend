@@ -141,6 +141,33 @@ public class TablesController : ControllerBase
             });
         }
 
+        var cleanupCandidate = (await _orderRepository.GetHistoryAsync())
+            .Where(order => order.TableNumber == tableNumber)
+            .Where(order => order.IsPaid && !order.IsCleanupCompleted)
+            .OrderByDescending(order => order.PaidAt ?? order.DeliveredAt ?? order.CreatedAt)
+            .FirstOrDefault();
+
+        if (cleanupCandidate != null)
+        {
+            var cleanupReferenceDate =
+                cleanupCandidate.PaidAt ??
+                cleanupCandidate.DeliveredAt ??
+                cleanupCandidate.CreatedAt;
+
+            var hasNewerOrderForSameTable = await _orderRepository.HasNewerOrdersForTableAsync(
+                tableNumber,
+                cleanupReferenceDate,
+                cleanupCandidate.Id ?? string.Empty);
+
+            if (!hasNewerOrderForSameTable)
+            {
+                return BadRequest(new
+                {
+                    message = $"La mesa {tableNumber} tiene limpieza pendiente. Debe cerrarse desde el flujo de limpieza."
+                });
+            }
+        }
+
         await _repository.ClearServiceStateAsync(tableNumber, false);
 
         var updatedTable = await _repository.GetByNumberAsync(tableNumber);
