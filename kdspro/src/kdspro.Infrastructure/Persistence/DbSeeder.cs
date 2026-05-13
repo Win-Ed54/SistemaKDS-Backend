@@ -56,7 +56,6 @@ public static class DbSeeder
             await collection.UpdateOneAsync(
                 product => product.Id == existing.Id,
                 Builders<Product>.Update
-                    .Set(product => product.Stock, DefaultProductStock)
                     .Set(product => product.Category, normalizedCategory ?? string.Empty));
         }
 
