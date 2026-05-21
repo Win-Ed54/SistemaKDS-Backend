@@ -240,8 +240,8 @@ app.Use(async (context, next) =>
     
     // CSP Header para mitigación de XSS
     var cspHeader = app.Environment.IsDevelopment()
-        ? "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:"
-        : "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:";
+        ? "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:"
+        : "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; font-src 'self' data:";
     
     context.Response.Headers.TryAdd("Content-Security-Policy", cspHeader);
     await next();
