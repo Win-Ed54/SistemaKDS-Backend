@@ -1,10 +1,13 @@
+using System.Globalization;
+using System.Text;
+using System.Text.RegularExpressions;
+using kdspro.Api.Hubs;
+using kdspro.Application.DTOs;
 using kdspro.Domain.Entities;
 using kdspro.Domain.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
-using kdspro.Api.Hubs;
-using Microsoft.AspNetCore.Authorization;
-using kdspro.Application.DTOs;
 
 namespace kdspro.Api.Controllers;
 
@@ -13,13 +16,21 @@ namespace kdspro.Api.Controllers;
 [Authorize]
 public class ProductsController : ControllerBase
 {
+    private static readonly string[] AllowedImageExtensions = [".jpg", ".jpeg", ".png", ".webp"];
+    private const long MaxImageSizeBytes = 5 * 1024 * 1024;
+
     private readonly IProductRepository _productRepository;
     private readonly IHubContext<OrdersHub> _hub;
+    private readonly IWebHostEnvironment _environment;
 
-    public ProductsController(IProductRepository productRepository, IHubContext<OrdersHub> hub)
+    public ProductsController(
+        IProductRepository productRepository,
+        IHubContext<OrdersHub> hub,
+        IWebHostEnvironment environment)
     {
         _productRepository = productRepository;
         _hub = hub;
+        _environment = environment;
     }
 
     [Authorize(Roles = "waiter,admin,kitchen")]
@@ -47,11 +58,36 @@ public class ProductsController : ControllerBase
         if (validationError != null) return BadRequest(new { message = validationError });
 
         await _productRepository.CreateAsync(product);
-
-        //Notificar a meseros que el catálogo cambió
-        await _hub.Clients.Groups("waiter", "admin").SendAsync("productupdated");
+        await NotifyProductCatalogUpdated();
 
         return CreatedAtAction(nameof(GetById), new { id = product.Id }, product);
+    }
+
+    [Authorize(Roles = "admin")]
+    [HttpPost("upload-image")]
+    [RequestSizeLimit(MaxImageSizeBytes)]
+    public async Task<ActionResult> UploadImage([FromForm] IFormFile? file)
+    {
+        if (file == null || file.Length == 0)
+            return BadRequest(new { message = "Selecciona una imagen valida." });
+        if (file.Length > MaxImageSizeBytes)
+            return BadRequest(new { message = "La imagen no puede superar 5 MB." });
+
+        var extension = Path.GetExtension(file.FileName)?.ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(extension) || !AllowedImageExtensions.Contains(extension))
+            return BadRequest(new { message = "Solo se permiten archivos JPG, PNG o WEBP." });
+
+        var uploadsPath = GetProductImagesDirectory();
+        Directory.CreateDirectory(uploadsPath);
+
+        var safeName = SlugifyFileName(Path.GetFileNameWithoutExtension(file.FileName));
+        var fileName = $"{DateTime.UtcNow:yyyyMMddHHmmssfff}-{safeName}{extension}";
+        var filePath = Path.Combine(uploadsPath, fileName);
+
+        await using var stream = System.IO.File.Create(filePath);
+        await file.CopyToAsync(stream);
+
+        return Ok(new { imageUrl = $"/images/productos/{fileName}" });
     }
 
     [Authorize(Roles = "admin")]
@@ -61,19 +97,18 @@ public class ProductsController : ControllerBase
         var existing = await _productRepository.GetByIdAsync(id);
         if (existing == null) return NotFound();
 
-        if (string.IsNullOrEmpty(product.ImageUrl) || product.ImageUrl == "default.webp") 
-    {
-        product.ImageUrl = existing.ImageUrl;
-    }
+        if (string.IsNullOrWhiteSpace(product.ImageUrl) || product.ImageUrl == "default.webp")
+        {
+            product.ImageUrl = existing.ImageUrl;
+        }
+
         var validationError = ValidateProduct(product);
         if (validationError != null) return BadRequest(new { message = validationError });
 
-        //Preservar el Id para que MongoDB no lo pierda
         product.Id = id;
         await _productRepository.UpdateAsync(id, product);
-
-        //Notificar a meseros que el catálogo cambió
-        await _hub.Clients.Groups("waiter", "admin").SendAsync("productupdated");
+        DeleteProductImageIfReplaced(existing.ImageUrl, product.ImageUrl);
+        await NotifyProductCatalogUpdated();
 
         return NoContent();
     }
@@ -86,9 +121,8 @@ public class ProductsController : ControllerBase
         if (existing == null) return NotFound();
 
         await _productRepository.DeleteAsync(id);
-
-        //Notificar a meseros que el catálogo cambió
-        await _hub.Clients.Groups("waiter", "admin").SendAsync("productupdated");
+        DeleteProductImage(existing.ImageUrl);
+        await NotifyProductCatalogUpdated();
 
         return NoContent();
     }
@@ -116,8 +150,6 @@ public class ProductsController : ControllerBase
                 return BadRequest(new { message = "El stock debe estar entre 0 y 100000." });
 
             await _productRepository.UpdateStockAsync(id, dto.NewStock);
-
-            // Notificar stock actualizado a meseros y admin
             await _hub.Clients.Groups("waiter", "admin").SendAsync("stockupdated", id, dto.NewStock);
 
             return Ok(new { id, newStock = dto.NewStock });
@@ -127,6 +159,11 @@ public class ProductsController : ControllerBase
             Console.WriteLine($">>> Error actualizando stock: {ex.Message}");
             return StatusCode(500, new { error = "No se pudo actualizar el stock." });
         }
+    }
+
+    private async Task NotifyProductCatalogUpdated()
+    {
+        await _hub.Clients.Groups("waiter", "admin").SendAsync("productupdated");
     }
 
     private static string? ValidateProduct(Product product)
@@ -159,5 +196,52 @@ public class ProductsController : ControllerBase
         if (string.IsNullOrWhiteSpace(imageUrl) || imageUrl == "default.webp") return true;
         if (imageUrl.Contains("..", StringComparison.Ordinal)) return false;
         return imageUrl.StartsWith("/images/productos/", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string GetProductImagesDirectory()
+    {
+        var webRootPath = string.IsNullOrWhiteSpace(_environment.WebRootPath)
+            ? Path.Combine(AppContext.BaseDirectory, "wwwroot")
+            : _environment.WebRootPath;
+
+        return Path.Combine(webRootPath, "images", "productos");
+    }
+
+    private void DeleteProductImageIfReplaced(string? previousImageUrl, string? newImageUrl)
+    {
+        if (string.Equals(previousImageUrl, newImageUrl, StringComparison.OrdinalIgnoreCase)) return;
+        DeleteProductImage(previousImageUrl);
+    }
+
+    private void DeleteProductImage(string? imageUrl)
+    {
+        if (!IsSafeImageUrl(imageUrl) || string.Equals(imageUrl, "default.webp", StringComparison.OrdinalIgnoreCase))
+            return;
+
+        var fileName = Path.GetFileName(imageUrl);
+        if (string.IsNullOrWhiteSpace(fileName)) return;
+
+        var imagePath = Path.Combine(GetProductImagesDirectory(), fileName);
+        if (System.IO.File.Exists(imagePath))
+        {
+            System.IO.File.Delete(imagePath);
+        }
+    }
+
+    private static string SlugifyFileName(string rawValue)
+    {
+        var normalized = rawValue.Normalize(NormalizationForm.FormD);
+        var builder = new StringBuilder();
+
+        foreach (var character in normalized)
+        {
+            if (CharUnicodeInfo.GetUnicodeCategory(character) != UnicodeCategory.NonSpacingMark)
+            {
+                builder.Append(character);
+            }
+        }
+
+        var slug = Regex.Replace(builder.ToString(), "[^a-zA-Z0-9-_]+", "-").Trim('-').ToLowerInvariant();
+        return string.IsNullOrWhiteSpace(slug) ? "producto" : slug;
     }
 }
