@@ -154,10 +154,16 @@ builder.Services.AddSignalR(options =>
     options.PayloadSerializerSettings.Converters.Add(new Newtonsoft.Json.Converters.StringEnumConverter());
 });
 // --- CORS ---
-var allowedOrigins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() 
-    ?? builder.Configuration["Cors:OriginsCsv"]?.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
-    ?? builder.Configuration["CORS_ORIGINS"]?.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
-    ?? new[] { "http://localhost:5173", "http://localhost:5174" };
+var allowedOrigins = (
+        builder.Configuration["CORS_ORIGINS"]?.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+        ?? builder.Configuration["Cors:OriginsCsv"]?.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+        ?? builder.Configuration.GetSection("Cors:Origins").Get<string[]>()
+        ?? new[] { "http://localhost:5173", "http://localhost:5174" }
+    )
+    .Where(origin => !string.IsNullOrWhiteSpace(origin))
+    .Select(origin => origin.Trim())
+    .Distinct(StringComparer.OrdinalIgnoreCase)
+    .ToArray();
 
 builder.Services.AddCors(options =>
 {
