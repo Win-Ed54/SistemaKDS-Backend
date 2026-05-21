@@ -15,6 +15,7 @@ using Microsoft.AspNetCore.SignalR;
 using System.Security.Claims;
 using Microsoft.AspNetCore.RateLimiting;
 using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.HttpOverrides;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -31,6 +32,10 @@ builder.Services.AddControllers()
     });
 
 builder.Services.AddEndpointsApiExplorer();
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+});
 builder.Services.AddSwaggerGen(options => {
     /* ... Tu configuración de Swagger actual es correcta ... */
 });
@@ -150,6 +155,8 @@ builder.Services.AddSignalR(options =>
 });
 // --- CORS ---
 var allowedOrigins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() 
+    ?? builder.Configuration["Cors:OriginsCsv"]?.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+    ?? builder.Configuration["CORS_ORIGINS"]?.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
     ?? new[] { "http://localhost:5173", "http://localhost:5174" };
 
 builder.Services.AddCors(options =>
@@ -234,6 +241,7 @@ app.Use(async (context, next) =>
     await next();
 });
 
+app.UseForwardedHeaders();
 app.UseStaticFiles();
 
 // --- GLOBAL EXCEPTION HANDLER ---

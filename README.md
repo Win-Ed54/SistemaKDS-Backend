@@ -128,6 +128,25 @@ La API usa configuracion de entorno para:
 
 En `kdspro/src` existe un `.env.example` para entorno local.
 
+## Variables Para Railway y Atlas
+
+Para produccion configura como minimo:
+
+- `ASPNETCORE_ENVIRONMENT=Production`
+- `MongoDbSettings__ConnectionString=mongodb+srv://USUARIO:CLAVE@CLUSTER.mongodb.net/?retryWrites=true&w=majority&appName=TUAPP`
+- `MongoDbSettings__DatabaseName=KDS`
+- `Jwt__Key=UNA_CLAVE_LARGA_Y_SECRETA_DE_32_BYTES_O_MAS`
+- `Jwt__Issuer=kds-api`
+- `Jwt__Audience=kds-client`
+- `CORS_ORIGINS=https://TU-FRONTEND.vercel.app`
+- `Seed__DefaultUsers=false`
+
+Notas:
+
+- `CORS_ORIGINS` acepta varios dominios separados por coma.
+- Railway debe apuntar al Dockerfile de `kdspro/src/kdspro.Api`.
+- MongoDB Atlas debe permitir acceso desde Railway y usar el string `mongodb+srv`.
+
 ## Ejecucion local
 
 Ubicacion:
