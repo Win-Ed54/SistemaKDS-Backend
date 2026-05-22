@@ -13,6 +13,9 @@ public class CreateOrderDto
     [StringLength(80, MinimumLength = 0, ErrorMessage = "Destino para llevar no puede exceder 80 caracteres")]
     public string TakeoutDestination { get; set; } = "";
 
+    [StringLength(180, MinimumLength = 0, ErrorMessage = "Direccion de delivery no puede exceder 180 caracteres")]
+    public string DeliveryAddress { get; set; } = "";
+
     [StringLength(50, MinimumLength = 0, ErrorMessage = "Nombre mesero no puede exceder 50 caracteres")]
     public string WaiterName { get; set; } = "";
 

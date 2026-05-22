@@ -37,6 +37,12 @@ public class OrdersController : ControllerBase
                 if (table == null)
                     return NotFound(new { error = "La mesa no existe." });
 
+                if (!table.IsOccupied)
+                    return BadRequest(new
+                    {
+                        error = $"La mesa {dto.TableNumber} no tiene comensales asignados por host."
+                    });
+
                 if (role == "waiter")
                 {
                     var waiterMatchesById =

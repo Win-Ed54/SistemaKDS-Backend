@@ -40,6 +40,7 @@ public class OrderService : IOrderService
         var settings = await _settingsService.GetAsync();
         var normalizedCustomerName = (dto.CustomerName ?? string.Empty).Trim();
         var normalizedTakeoutDestination = (dto.TakeoutDestination ?? string.Empty).Trim();
+        var normalizedDeliveryAddress = (dto.DeliveryAddress ?? string.Empty).Trim();
         var requiresTakeoutPrepayment = dto.TableNumber == 0 && settings.TakeoutRequirePrepayment;
 
         if (dto.Items == null || dto.Items.Count == 0)
@@ -54,9 +55,18 @@ public class OrderService : IOrderService
         if (normalizedTakeoutDestination.Length > 80)
             throw new InvalidOperationException("El destino para llevar no puede exceder 80 caracteres.");
 
+        if (normalizedDeliveryAddress.Length > 180)
+            throw new InvalidOperationException("La direccion de delivery no puede exceder 180 caracteres.");
+
         if (dto.TableNumber == 0)
         {
             normalizedTakeoutDestination = NormalizeTakeoutDestination(normalizedTakeoutDestination);
+
+            if (string.Equals(normalizedTakeoutDestination, "Delivery", StringComparison.OrdinalIgnoreCase) &&
+                string.IsNullOrWhiteSpace(normalizedDeliveryAddress))
+            {
+                throw new InvalidOperationException("La direccion es obligatoria para pedidos delivery.");
+            }
         }
 
         if (dto.Items.Count > settings.MaxDistinctItems)
@@ -124,6 +134,7 @@ public class OrderService : IOrderService
             TableNumber = dto.TableNumber,
             CustomerName = string.IsNullOrWhiteSpace(normalizedCustomerName) ? "GENERAL" : normalizedCustomerName,
             TakeoutDestination = dto.TableNumber == 0 ? normalizedTakeoutDestination : string.Empty,
+            DeliveryAddress = dto.TableNumber == 0 ? normalizedDeliveryAddress : string.Empty,
             WaiterId = userId,
             WaiterName = username,
             TaxableAmount = taxableAmount,
@@ -492,6 +503,7 @@ public class OrderService : IOrderService
         CorrelativeCode = order.CorrelativeCode,
         CustomerName = order.CustomerName,
         TakeoutDestination = order.TakeoutDestination,
+        DeliveryAddress = order.DeliveryAddress,
         WaiterId = order.WaiterId,
         WaiterName = order.WaiterName,
         PreparedByName = order.PreparedByName,

@@ -12,6 +12,7 @@ public class OrderDto
     public string CorrelativeCode { get; set; } = "";
     public string CustomerName { get; set; } = "";
     public string TakeoutDestination { get; set; } = "";
+    public string DeliveryAddress { get; set; } = "";
     public string WaiterId { get; set; } = "";
     public string WaiterName { get; set; } = "";
     public string PreparedByName { get; set; } = "";
