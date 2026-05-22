@@ -32,6 +32,7 @@ public class AuthController : ControllerBase
         {
             token = result.token,
             role = result.role,
+            serviceScope = result.serviceScope,
             refreshToken,
             expiresIn = 43200
         });
@@ -50,6 +51,7 @@ public class AuthController : ControllerBase
         {
             token = result.Token,
             role = result.Role,
+            serviceScope = result.ServiceScope,
             refreshToken = result.NewRefreshToken,
             expiresIn = 43200
         });

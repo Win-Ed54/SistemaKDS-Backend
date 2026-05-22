@@ -14,11 +14,13 @@ public class OrdersController : ControllerBase
 {
     private readonly IOrderService _orderService;
     private readonly ITableRepository _tableRepository;
+    private readonly IUserRepository _userRepository;
 
-    public OrdersController(IOrderService orderService, ITableRepository tableRepository)
+    public OrdersController(IOrderService orderService, ITableRepository tableRepository, IUserRepository userRepository)
     {
         _orderService = orderService;
         _tableRepository = tableRepository;
+        _userRepository = userRepository;
     }
 
     [Authorize(Roles = "waiter,admin")]
@@ -28,9 +30,39 @@ public class OrdersController : ControllerBase
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         var username = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value;
         var role = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value?.Trim().ToLowerInvariant() ?? string.Empty;
+        var serviceScope = User.FindFirst("service_scope")?.Value?.Trim().ToLowerInvariant() ?? "hybrid";
 
         try
         {
+            if (role == "waiter")
+            {
+                var hasDedicatedTakeoutWaiter = await _userRepository.HasWaiterWithServiceScope("takeout", userId);
+
+                if (serviceScope == "dining" && dto.TableNumber == 0)
+                {
+                    return StatusCode(StatusCodes.Status403Forbidden, new
+                    {
+                        error = "Este mesero solo puede tomar ordenes de mesas asignadas."
+                    });
+                }
+
+                if (serviceScope == "takeout" && dto.TableNumber > 0)
+                {
+                    return StatusCode(StatusCodes.Status403Forbidden, new
+                    {
+                        error = "Este mesero solo puede tomar ordenes para llevar."
+                    });
+                }
+
+                if (serviceScope != "takeout" && dto.TableNumber == 0 && hasDedicatedTakeoutWaiter)
+                {
+                    return StatusCode(StatusCodes.Status403Forbidden, new
+                    {
+                        error = "Ya existe un mesero asignado a para llevar. Los demas solo pueden atender sus mesas o enviar para llevar desde mesa."
+                    });
+                }
+            }
+
             if (dto.TableNumber > 0)
             {
                 var table = await _tableRepository.GetByNumberAsync(dto.TableNumber);

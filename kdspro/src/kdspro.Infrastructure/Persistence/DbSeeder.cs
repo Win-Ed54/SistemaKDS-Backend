@@ -121,15 +121,22 @@ public static class DbSeeder
     {
         var seedUsers = new[]
         {
-            new { Username = "admin", Password = "Admin_KDS_2026!", Role = "admin" },
-            new { Username = "gerente", Password = "Gerente2026!", Role = "admin" },
-            new { Username = "caja1", Password = "Caja2026!", Role = "cashier" },
-            new { Username = "kitchen1", Password = "chef2026", Role = "kitchen" },
-            new { Username = "kitchen2", Password = "preparador2026", Role = "kitchen" },
-            new { Username = "waiter1", Password = "waiter2026", Role = "waiter" },
-            new { Username = "Edwin", Password = "Edwin2026", Role = "waiter" },
-            new { Username = "waiter2", Password = "waiter22026", Role = "waiter" },
-            new { Username = "host1", Password = "host2026", Role = "host" }
+            new { Username = "admin", Password = "Admin_KDS_2026!", Role = "admin", ServiceScope = "hybrid" },
+            new { Username = "gerente", Password = "Gerente2026!", Role = "admin", ServiceScope = "hybrid" },
+            new { Username = "supervisor", Password = "Supervisor2026!", Role = "admin", ServiceScope = "hybrid" },
+            new { Username = "caja1", Password = "Caja2026!", Role = "cashier", ServiceScope = "hybrid" },
+            new { Username = "caja2", Password = "Caja22026!", Role = "cashier", ServiceScope = "hybrid" },
+            new { Username = "caja3", Password = "Caja32026!", Role = "cashier", ServiceScope = "hybrid" },
+            new { Username = "kitchen1", Password = "chef2026", Role = "kitchen", ServiceScope = "hybrid" },
+            new { Username = "kitchen2", Password = "preparador2026", Role = "kitchen", ServiceScope = "hybrid" },
+            new { Username = "kitchen3", Password = "cocina32026", Role = "kitchen", ServiceScope = "hybrid" },
+            new { Username = "waiter1", Password = "waiter2026", Role = "waiter", ServiceScope = "dining" },
+            new { Username = "Edwin", Password = "Edwin2026", Role = "waiter", ServiceScope = "hybrid" },
+            new { Username = "waiter2", Password = "waiter22026", Role = "waiter", ServiceScope = "takeout" },
+            new { Username = "waiter3", Password = "waiter32026", Role = "waiter", ServiceScope = "dining" },
+            new { Username = "host1", Password = "host2026", Role = "host", ServiceScope = "hybrid" },
+            new { Username = "host2", Password = "host22026", Role = "host", ServiceScope = "hybrid" },
+            new { Username = "host3", Password = "host32026", Role = "host", ServiceScope = "hybrid" }
         };
 
         foreach (var seedUser in seedUsers)
@@ -145,14 +152,16 @@ public static class DbSeeder
                 {
                     Username = seedUser.Username,
                     PasswordHash = BCrypt.Net.BCrypt.HashPassword(seedUser.Password),
-                    Role = seedUser.Role
+                    Role = seedUser.Role,
+                    ServiceScope = seedUser.ServiceScope
                 });
                 continue;
             }
 
             var update = Builders<User>.Update
                 .Set(user => user.Username, seedUser.Username)
-                .Set(user => user.Role, seedUser.Role);
+                .Set(user => user.Role, seedUser.Role)
+                .Set(user => user.ServiceScope, seedUser.ServiceScope);
 
             if (!PasswordMatches(existingUser.PasswordHash, seedUser.Password))
             {

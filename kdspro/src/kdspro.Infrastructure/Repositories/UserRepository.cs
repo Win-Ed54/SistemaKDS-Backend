@@ -53,6 +53,31 @@ public class UserRepository : IUserRepository
             .ToListAsync();
     }
 
+    public async Task<List<User>> GetAll()
+    {
+        return await _users
+            .Find(_ => true)
+            .ToListAsync();
+    }
+
+    public async Task<bool> HasWaiterWithServiceScope(string serviceScope, string? excludeUserId = null)
+    {
+        var normalizedScope = string.IsNullOrWhiteSpace(serviceScope)
+            ? "hybrid"
+            : serviceScope.Trim().ToLowerInvariant();
+
+        var builder = Builders<User>.Filter;
+        var filter = builder.Regex(user => user.Role, new BsonRegularExpression("^\\s*waiter\\s*$", "i")) &
+                     builder.Regex(user => user.ServiceScope, new BsonRegularExpression($"^\\s*{Regex.Escape(normalizedScope)}\\s*$", "i"));
+
+        if (!string.IsNullOrWhiteSpace(excludeUserId))
+        {
+            filter &= builder.Ne(user => user.Id, excludeUserId);
+        }
+
+        return await _users.Find(filter).AnyAsync();
+    }
+
     public async Task Create(User user)
     {
         await _users.InsertOneAsync(user);
@@ -74,5 +99,14 @@ public class UserRepository : IUserRepository
         await _users.UpdateOneAsync(
             user => user.Id == id,
             Builders<User>.Update.Set(user => user.CurrentSessionId, sessionId ?? string.Empty));
+    }
+
+    public async Task UpdateServiceScope(string id, string serviceScope)
+    {
+        if (string.IsNullOrWhiteSpace(id)) return;
+
+        await _users.UpdateOneAsync(
+            user => user.Id == id,
+            Builders<User>.Update.Set(user => user.ServiceScope, serviceScope ?? "hybrid"));
     }
 }

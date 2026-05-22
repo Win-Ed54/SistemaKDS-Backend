@@ -18,6 +18,7 @@ public class OrderService : IOrderService
     private readonly IOrderRepository _orderRepository;
     private readonly IProductRepository _productRepository;
     private readonly ITableRepository _tableRepository;
+    private readonly IUserRepository _userRepository;
     private readonly IOrderNotificationService _notificationService;
     private readonly IKdsSettingsService _settingsService;
 
@@ -25,12 +26,14 @@ public class OrderService : IOrderService
         IOrderRepository orderRepository,
         IProductRepository productRepository,
         ITableRepository tableRepository,
+        IUserRepository userRepository,
         IOrderNotificationService notificationService,
         IKdsSettingsService settingsService)
     {
         _orderRepository = orderRepository;
         _productRepository = productRepository;
         _tableRepository = tableRepository;
+        _userRepository = userRepository;
         _notificationService = notificationService;
         _settingsService = settingsService;
     }
@@ -363,6 +366,7 @@ public class OrderService : IOrderService
     public async Task<WaiterSummaryDto> GetWaiterSummary(string userId, string username)
     {
         var allOrders = await _orderRepository.GetOrdersByWaiterAsync(userId);
+        var hasDedicatedTakeoutWaiter = await _userRepository.HasWaiterWithServiceScope("takeout", userId);
         var pendingCleanupOrders = new List<OrderDto>();
 
         foreach (var order in allOrders
@@ -389,6 +393,7 @@ public class OrderService : IOrderService
             WaiterName = username,
             TotalCreated = allOrders.Count,
             TotalDelivered = allOrders.Count(o => o.Status == OrderStatus.Delivered),
+            HasDedicatedTakeoutWaiter = hasDedicatedTakeoutWaiter,
             MyActiveOrders = allOrders
                 .Where(o => o.Status != OrderStatus.Delivered && o.Status != OrderStatus.Cancelled)
                 .Select(MapToDto)

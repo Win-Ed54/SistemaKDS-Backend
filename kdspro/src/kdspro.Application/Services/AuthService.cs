@@ -26,19 +26,19 @@ public class AuthService
         _refreshTokens = database.GetCollection<RefreshToken>("RefreshTokens");
     }
 
-    public async Task<(string? token, string? role, string? userId)> Login(
+    public async Task<(string? token, string? role, string? userId, string? serviceScope)> Login(
         string username, string password)
     {
         if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
-            return (null, null, null);
+            return (null, null, null, null);
 
         var normalizedUsername = username.Trim();
         var user = await _users.GetByUsername(normalizedUsername);
-        if (user == null) return (null, null, null);
+        if (user == null) return (null, null, null, null);
 
         var isValidPassword = await VerifyPassword(user, password);
         if (!isValidPassword)
-            return (null, null, null);
+            return (null, null, null, null);
 
         var sessionId = Guid.NewGuid().ToString("N");
         await _users.UpdateCurrentSessionId(user.Id, sessionId);
@@ -46,8 +46,9 @@ public class AuthService
         user.CurrentSessionId = sessionId;
 
         var role = NormalizeRole(user.Role);
+        var serviceScope = NormalizeServiceScope(user.ServiceScope);
 
-        return (GenerateToken(user), role, user.Id);
+        return (GenerateToken(user), role, user.Id, serviceScope);
     }
 
     private string GenerateToken(User user)
@@ -63,6 +64,7 @@ public class AuthService
             new Claim(ClaimTypes.NameIdentifier, user.Id!),
             new Claim(ClaimTypes.Name,           user.Username),
             new Claim(ClaimTypes.Role,           NormalizeRole(user.Role)),
+            new Claim("service_scope",           NormalizeServiceScope(user.ServiceScope)),
             new Claim("sid",                     user.CurrentSessionId ?? string.Empty),
         };
 
@@ -122,7 +124,7 @@ public class AuthService
         var newJwt          = GenerateToken(user);
         var newRefreshToken = await GenerateRefreshToken(user.Id!);
 
-        return new RefreshResult(newJwt, NormalizeRole(user.Role), newRefreshToken);
+        return new RefreshResult(newJwt, NormalizeRole(user.Role), NormalizeServiceScope(user.ServiceScope), newRefreshToken);
     }
 
     public async Task RevokeRefreshToken(string refreshToken)
@@ -222,6 +224,17 @@ public class AuthService
             ? string.Empty
             : role.Trim().ToLowerInvariant();
     }
+
+    private static string NormalizeServiceScope(string serviceScope)
+    {
+        var normalized = string.IsNullOrWhiteSpace(serviceScope)
+            ? "hybrid"
+            : serviceScope.Trim().ToLowerInvariant();
+
+        return normalized is "dining" or "takeout" or "hybrid"
+            ? normalized
+            : "hybrid";
+    }
 }
 
-public record RefreshResult(string Token, string Role, string NewRefreshToken);
+public record RefreshResult(string Token, string Role, string ServiceScope, string NewRefreshToken);

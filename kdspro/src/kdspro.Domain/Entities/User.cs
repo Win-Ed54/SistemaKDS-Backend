@@ -15,5 +15,7 @@ public class User
 
     public string Role {get; set;} = "";
 
+    public string ServiceScope { get; set; } = "hybrid";
+
     public string CurrentSessionId { get; set; } = "";
 }
