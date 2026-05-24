@@ -4,7 +4,7 @@ using System.ComponentModel.DataAnnotations;
 namespace kdspro.Application.DTOs;
 public class CreateOrderDto
 {
-    [Range(0, 99, ErrorMessage = "Número de mesa debe estar entre 0 (takeout) y 99")]
+    [Range(0, 99, ErrorMessage = "Numero de mesa debe estar entre 0 (para llevar) y 99")]
     public int TableNumber { get; set; }
 
     [StringLength(80, MinimumLength = 0, ErrorMessage = "Nombre cliente no puede exceder 80 caracteres")]

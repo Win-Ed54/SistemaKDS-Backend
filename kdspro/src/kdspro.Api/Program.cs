@@ -5,6 +5,7 @@ using kdspro.Api.Hubs;
 using kdspro.Api.Middleware;
 using kdspro.Application.Services;
 using kdspro.Application.Interfaces;
+using kdspro.Domain.Entities;
 using MongoDB.Driver;
 using kdspro.Api.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -216,6 +217,12 @@ builder.Services.AddScoped<IKdsSettingsService, KdsSettingsService>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<IOrderNotificationService, OrderNotificationService>();
+builder.Services.AddScoped<IAnalyticsService>(sp =>
+{
+    var database = sp.GetRequiredService<IMongoDatabase>();
+    var ordersCollection = database.GetCollection<Order>("orders");
+    return new AnalyticsService(ordersCollection);
+});
 
 var app = builder.Build();
 

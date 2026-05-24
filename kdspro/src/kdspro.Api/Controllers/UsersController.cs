@@ -75,7 +75,7 @@ public class UsersController : ControllerBase
             : dto.ServiceScope.Trim().ToLowerInvariant();
 
         if (normalizedScope is not ("dining" or "takeout" or "hybrid"))
-            return BadRequest(new { message = "El alcance debe ser dining, takeout o hybrid." });
+            return BadRequest(new { message = "El alcance debe ser solo mesas, solo para llevar o mixto." });
 
         await _users.UpdateServiceScope(id, normalizedScope);
         return Ok(new { id, serviceScope = normalizedScope });
