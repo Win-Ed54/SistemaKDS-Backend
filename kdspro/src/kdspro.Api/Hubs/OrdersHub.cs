@@ -93,11 +93,9 @@ public class OrdersHub : Hub
     {
         _presenceTracker.Remove(Context.ConnectionId);
 
-        if (Context.User?.FindFirst(ClaimTypes.Role)?.Value?.Trim().ToLowerInvariant() is string role &&
-            (role == HostGroup || role == AdminGroup))
-        {
-            await Clients.Group(role).SendAsync("presenceupdated");
-        }
+        // Notificar a los administradores y hosts que la presencia cambió
+        await Clients.Group(HostGroup).SendAsync("presenceupdated");
+        await Clients.Group(AdminGroup).SendAsync("presenceupdated");
 
         Console.WriteLine($"🔴 Cliente desconectado: {Context.ConnectionId}");
         await base.OnDisconnectedAsync(exception);
