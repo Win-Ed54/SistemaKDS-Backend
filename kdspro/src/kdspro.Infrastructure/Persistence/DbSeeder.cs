@@ -216,6 +216,8 @@ public static class DbSeeder
             RequireCustomerNameForTakeout = true,
             DefaultCleaningMinutes = 8,
             MaxPartySize = 10,
+            MaxTablesPerWaiter = 5,
+            RequireConnectedWaitersForAssignment = true,
             UpdatedAt = DateTime.UtcNow,
         });
     }

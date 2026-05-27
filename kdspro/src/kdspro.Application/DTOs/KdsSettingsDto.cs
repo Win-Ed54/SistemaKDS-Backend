@@ -27,4 +27,9 @@ public class KdsSettingsDto
 
     [Range(1, 100, ErrorMessage = "MaxPartySize debe estar entre 1 y 100")]
     public int MaxPartySize { get; set; }
+
+    [Range(1, 50, ErrorMessage = "MaxTablesPerWaiter debe estar entre 1 y 50")]
+    public int MaxTablesPerWaiter { get; set; }
+
+    public bool RequireConnectedWaitersForAssignment { get; set; } = true;
 }

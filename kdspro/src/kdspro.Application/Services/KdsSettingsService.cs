@@ -37,6 +37,8 @@ public class KdsSettingsService : IKdsSettingsService
             RequireCustomerNameForTakeout = dto.RequireCustomerNameForTakeout,
             DefaultCleaningMinutes = NormalizePositive(dto.DefaultCleaningMinutes, 8),
             MaxPartySize = NormalizePositive(dto.MaxPartySize, 10),
+            MaxTablesPerWaiter = NormalizePositive(dto.MaxTablesPerWaiter, 5),
+            RequireConnectedWaitersForAssignment = dto.RequireConnectedWaitersForAssignment,
             UpdatedAt = DateTime.UtcNow,
         };
 
@@ -64,6 +66,8 @@ public class KdsSettingsService : IKdsSettingsService
             RequireCustomerNameForTakeout = settings?.RequireCustomerNameForTakeout ?? true,
             DefaultCleaningMinutes = settings?.DefaultCleaningMinutes > 0 ? settings.DefaultCleaningMinutes : 8,
             MaxPartySize = settings?.MaxPartySize > 0 ? settings.MaxPartySize : 10,
+            MaxTablesPerWaiter = settings?.MaxTablesPerWaiter > 0 ? settings.MaxTablesPerWaiter : 5,
+            RequireConnectedWaitersForAssignment = settings?.RequireConnectedWaitersForAssignment ?? true,
             UpdatedAt = settings?.UpdatedAt ?? DateTime.UtcNow,
         };
     }
@@ -79,5 +83,7 @@ public class KdsSettingsService : IKdsSettingsService
         RequireCustomerNameForTakeout = settings.RequireCustomerNameForTakeout,
         DefaultCleaningMinutes = settings.DefaultCleaningMinutes,
         MaxPartySize = settings.MaxPartySize,
+        MaxTablesPerWaiter = settings.MaxTablesPerWaiter,
+        RequireConnectedWaitersForAssignment = settings.RequireConnectedWaitersForAssignment,
     };
 }

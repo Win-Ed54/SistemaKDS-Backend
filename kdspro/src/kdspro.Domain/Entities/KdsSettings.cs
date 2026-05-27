@@ -28,5 +28,9 @@ public class KdsSettings
 
     public int MaxPartySize { get; set; } = 10;
 
+    public int MaxTablesPerWaiter { get; set; } = 5;
+
+    public bool RequireConnectedWaitersForAssignment { get; set; } = true;
+
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

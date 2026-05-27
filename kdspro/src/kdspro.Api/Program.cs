@@ -217,6 +217,7 @@ builder.Services.AddScoped<IKdsSettingsService, KdsSettingsService>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<IOrderNotificationService, OrderNotificationService>();
+builder.Services.AddSingleton<PresenceTracker>();
 builder.Services.AddScoped<IAnalyticsService>(sp =>
 {
     var database = sp.GetRequiredService<IMongoDatabase>();

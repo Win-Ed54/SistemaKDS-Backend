@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
+using kdspro.Api.Services;
 
 namespace kdspro.Api.Hubs;
 
@@ -21,6 +22,36 @@ public class OrdersHub : Hub
     private const string HostGroup = "host";
     private const string AdminGroup = "admin";
     private const string CashierGroup = "cashier";
+
+    private readonly PresenceTracker _presenceTracker;
+
+    public OrdersHub(PresenceTracker presenceTracker)
+    {
+        _presenceTracker = presenceTracker;
+    }
+
+    public async Task RegisterPresence(string browser, string? userAgent = null)
+    {
+        var userId = Context.User?.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty;
+        var username = Context.User?.FindFirstValue(ClaimTypes.Name) ?? string.Empty;
+        var role = Context.User?.FindFirstValue(ClaimTypes.Role)?.Trim().ToLowerInvariant() ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(role) || !AllowedRoles.Contains(role))
+        {
+            return;
+        }
+
+        _presenceTracker.Upsert(Context.ConnectionId, userId, username, role, browser, userAgent ?? string.Empty);
+
+        await Clients.Group(HostGroup).SendAsync("presenceupdated");
+        await Clients.Group(AdminGroup).SendAsync("presenceupdated");
+    }
+
+    public Task HeartbeatPresence()
+    {
+        _presenceTracker.Heartbeat(Context.ConnectionId);
+        return Task.CompletedTask;
+    }
 
     public override async Task OnConnectedAsync()
     {
@@ -60,6 +91,14 @@ public class OrdersHub : Hub
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
+        _presenceTracker.Remove(Context.ConnectionId);
+
+        if (Context.User?.FindFirst(ClaimTypes.Role)?.Value?.Trim().ToLowerInvariant() is string role &&
+            (role == HostGroup || role == AdminGroup))
+        {
+            await Clients.Group(role).SendAsync("presenceupdated");
+        }
+
         Console.WriteLine($"🔴 Cliente desconectado: {Context.ConnectionId}");
         await base.OnDisconnectedAsync(exception);
     }
