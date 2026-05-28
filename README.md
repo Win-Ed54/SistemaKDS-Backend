@@ -1,6 +1,6 @@
 # Sistema KDS Backend
 
-Backend del sistema KDS para restaurantes, construido con .NET 8, MongoDB y SignalR.
+API del sistema KDS para restaurantes, construida con .NET 8, MongoDB y SignalR.
 
 Esta API centraliza autenticacion, pedidos, stock, mesas, configuracion operativa y eventos en tiempo real para cocina, meseros, caja, host y administracion.
 
@@ -57,14 +57,31 @@ Esta API centraliza autenticacion, pedidos, stock, mesas, configuracion operativ
 - transferencia de mesas segun reglas operativas
 - validaciones para host, mesero, caja, cocina y admin segun el flujo
 
+## Actualizacion 27-May
+
+- `TakeoutDestination` acepta destinos operativos para llevar: `Mostrador`, `Autoservicio`, `Delivery` y `Mesa N`.
+- Los pedidos para llevar guardan `WaiterId`, `WaiterName`, destino y direccion de delivery cuando aplica.
+- El cobro soporta pagos parciales por linea mediante `ItemPayments`, `PaidQuantity`, `PaidAmount` y `RemainingAmount`.
+- Los prepagos para llevar pueden pasar primero por caja y publicarse a cocina al quedar cobrados.
+- La auditoria de orden conserva correlativo, creador, cobrador, cancelador, metodo de pago y timestamps relevantes.
+
 ## Flujo de pedidos para llevar
 
 - una orden `tableNumber = 0` se registra como pedido para llevar
 - conserva `WaiterId` y `WaiterName` del usuario autenticado que la creo
+- conserva el destino para llevar, incluyendo `Mesa N` cuando nace desde una mesa asignada
 - si el prepago para llevar esta desactivado, la orden entra a cocina de inmediato
 - si el prepago para llevar esta activado, la orden aparece primero en caja
 - cuando caja completa el pago, el backend publica la orden a cocina
 - con prepago activo, el seguimiento en caja debe tratar esas ordenes como flujo de prepago y no como cobro normal de ordenes entregadas
+
+## Flujo de cobro parcial
+
+- caja puede enviar `ItemPayments` para cobrar solo cantidades seleccionadas de una orden entregada
+- cada linea acumula `PaidQuantity` y expone `RemainingQuantity`
+- la orden queda `IsPaid = false` mientras existan productos pendientes
+- cuando todas las lineas estan pagadas, se registra `PaidAt`, `PaidByName`, metodo de pago y documento
+- los totales expuestos incluyen `PaidAmount` y `RemainingAmount`
 
 ## Flujo de mesas y limpieza
 
@@ -129,7 +146,7 @@ La API usa configuracion de entorno para:
 
 En `kdspro/src` existe un `.env.example` para entorno local.
 
-## Variables Para Railway y Atlas
+## Variables para produccion
 
 Para produccion configura como minimo:
 
@@ -145,6 +162,7 @@ Para produccion configura como minimo:
 Notas:
 
 - `CORS_ORIGINS` acepta varios dominios separados por coma.
+- En `docker-compose.yml` el backend tambien puede recibir `PUBLIC_ORIGIN`, que termina en `Cors__Origins__0`.
 - Railway debe apuntar al Dockerfile de `kdspro/src/kdspro.Api`.
 - MongoDB Atlas debe permitir acceso desde Railway y usar el string `mongodb+srv`.
 
@@ -168,7 +186,7 @@ Acceso local por defecto:
 
 ## Docker
 
-En `kdspro/src/docker-compose.yml` existe soporte para levantar los servicios del proyecto.
+En `kdspro/src/docker-compose.yml` existe soporte para levantar MongoDB, la API y el frontend.
 
 Comando recomendado:
 
@@ -185,7 +203,7 @@ El frontend entra por proxy a:
 Notas de integracion:
 
 - El `docker-compose.yml` construye el frontend desde `Sistema-KDS-Kitchen-Display-System-para-restaurantes---Frontend`.
-- Ese frontend ahora usa `pnpm`; el `Dockerfile` del frontend ya instala con `pnpm install --frozen-lockfile`, por lo que no requiere `npm ci`.
+- Ese frontend usa `pnpm`, asi que su `Dockerfile` instala con `pnpm install --frozen-lockfile`.
 
 ## Endpoints destacados
 
