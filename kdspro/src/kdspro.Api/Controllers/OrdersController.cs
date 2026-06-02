@@ -15,6 +15,12 @@ public class OrdersController : ControllerBase
     private readonly IOrderService _orderService;
     private readonly ITableRepository _tableRepository;
     private readonly IUserRepository _userRepository;
+    private static readonly HashSet<string> ValidServiceScopes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "dining",
+        "takeout",
+        "hybrid",
+    };
 
     public OrdersController(IOrderService orderService, ITableRepository tableRepository, IUserRepository userRepository)
     {
@@ -30,12 +36,20 @@ public class OrdersController : ControllerBase
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         var username = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value;
         var role = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value?.Trim().ToLowerInvariant() ?? string.Empty;
-        var serviceScope = User.FindFirst("service_scope")?.Value?.Trim().ToLowerInvariant() ?? "hybrid";
+        var serviceScope = "hybrid";
 
         try
         {
             if (role == "waiter")
             {
+                if (string.IsNullOrWhiteSpace(userId))
+                    return Unauthorized(new { error = "No se pudo identificar al mesero." });
+
+                var currentUser = await _userRepository.GetById(userId);
+                if (currentUser == null)
+                    return Unauthorized(new { error = "El perfil del mesero ya no existe." });
+
+                serviceScope = NormalizeServiceScope(currentUser.ServiceScope);
                 var hasDedicatedTakeoutWaiter = await _userRepository.HasWaiterWithServiceScope("takeout", userId);
 
                 if (serviceScope == "dining" && dto.TableNumber == 0)
@@ -271,5 +285,14 @@ public class OrdersController : ControllerBase
         {
             return BadRequest(new { error = ex.Message });
         }
+    }
+
+    private static string NormalizeServiceScope(string? serviceScope)
+    {
+        var normalized = string.IsNullOrWhiteSpace(serviceScope)
+            ? "hybrid"
+            : serviceScope.Trim().ToLowerInvariant();
+
+        return ValidServiceScopes.Contains(normalized) ? normalized : "hybrid";
     }
 }

@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
+using kdspro.Api.Hubs;
 using kdspro.Api.Services;
 using kdspro.Application.DTOs;
 using kdspro.Domain.Interfaces;
@@ -13,11 +15,16 @@ public class UsersController : ControllerBase
 {
     private readonly IUserRepository _users;
     private readonly PresenceTracker _presenceTracker;
+    private readonly IHubContext<OrdersHub> _hubContext;
 
-    public UsersController(IUserRepository users, PresenceTracker presenceTracker)
+    public UsersController(
+        IUserRepository users,
+        PresenceTracker presenceTracker,
+        IHubContext<OrdersHub> hubContext)
     {
         _users = users;
         _presenceTracker = presenceTracker;
+        _hubContext = hubContext;
     }
 
     [HttpGet("waiters")]
@@ -98,7 +105,54 @@ public class UsersController : ControllerBase
         if (normalizedScope is not ("dining" or "takeout" or "hybrid"))
             return BadRequest(new { message = "El alcance debe ser solo mesas, solo para llevar o mixto." });
 
+        var affectedUsers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            [id] = normalizedScope
+        };
+
         await _users.UpdateServiceScope(id, normalizedScope);
-        return Ok(new { id, serviceScope = normalizedScope });
+
+        if (normalizedScope == "takeout")
+        {
+            var waiters = await _users.GetByRole("waiter");
+            var otherWaiters = waiters.Where(waiter => !string.Equals(waiter.Id, id, StringComparison.OrdinalIgnoreCase));
+
+            foreach (var waiter in otherWaiters)
+            {
+                if (string.IsNullOrWhiteSpace(waiter.Id)) continue;
+
+                await _users.UpdateServiceScope(waiter.Id, "dining");
+                affectedUsers[waiter.Id] = "dining";
+            }
+        }
+
+        await NotifyServiceScopeChanges(affectedUsers);
+
+        return Ok(new
+        {
+            id,
+            serviceScope = normalizedScope,
+            affectedUsers = affectedUsers.Select(entry => new { id = entry.Key, serviceScope = entry.Value }),
+        });
+    }
+
+    private async Task NotifyServiceScopeChanges(IReadOnlyDictionary<string, string> affectedUsers)
+    {
+        await _hubContext.Clients.Groups("admin", "host").SendAsync("staffupdated");
+        await _hubContext.Clients.Groups("admin", "host").SendAsync("StaffUpdated");
+
+        foreach (var entry in affectedUsers)
+        {
+            if (string.IsNullOrWhiteSpace(entry.Key)) continue;
+
+            var payload = new
+            {
+                userId = entry.Key,
+                serviceScope = entry.Value,
+            };
+
+            await _hubContext.Clients.User(entry.Key).SendAsync("servicescopeupdated", payload);
+            await _hubContext.Clients.User(entry.Key).SendAsync("ServiceScopeUpdated", payload);
+        }
     }
 }
