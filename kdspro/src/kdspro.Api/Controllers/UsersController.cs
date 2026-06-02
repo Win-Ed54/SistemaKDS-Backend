@@ -105,22 +105,42 @@ public class UsersController : ControllerBase
         if (normalizedScope is not ("dining" or "takeout" or "hybrid"))
             return BadRequest(new { message = "El alcance debe ser solo mesas, solo para llevar o mixto." });
 
-        var affectedUsers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            [id] = normalizedScope
-        };
+        var waiters = await _users.GetByRole("waiter");
+        var existingTakeoutWaiter = waiters.FirstOrDefault(waiter =>
+            string.Equals(waiter?.ServiceScope, "takeout", StringComparison.OrdinalIgnoreCase));
 
-        await _users.UpdateServiceScope(id, normalizedScope);
+        var affectedUsers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         if (normalizedScope == "takeout")
         {
-            var waiters = await _users.GetByRole("waiter");
-            var otherWaiters = waiters.Where(waiter => !string.Equals(waiter.Id, id, StringComparison.OrdinalIgnoreCase));
-
-            foreach (var waiter in otherWaiters)
+            foreach (var waiter in waiters)
             {
-                if (string.IsNullOrWhiteSpace(waiter.Id)) continue;
+                if (string.IsNullOrWhiteSpace(waiter.Id) || string.Equals(waiter.Id, id, StringComparison.OrdinalIgnoreCase))
+                    continue;
 
+                await _users.UpdateServiceScope(waiter.Id, "dining");
+                affectedUsers[waiter.Id] = "dining";
+            }
+        }
+        else if (normalizedScope == "hybrid" && existingTakeoutWaiter != null)
+        {
+            if (!string.Equals(existingTakeoutWaiter.Id, id, StringComparison.OrdinalIgnoreCase))
+            {
+                normalizedScope = "dining";
+            }
+        }
+
+        affectedUsers[id] = normalizedScope;
+        await _users.UpdateServiceScope(id, normalizedScope);
+
+        foreach (var waiter in waiters)
+        {
+            if (string.IsNullOrWhiteSpace(waiter.Id) || string.Equals(waiter.Id, id, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            if (!affectedUsers.ContainsKey(waiter.Id) &&
+                string.Equals(waiter.ServiceScope, "takeout", StringComparison.OrdinalIgnoreCase))
+            {
                 await _users.UpdateServiceScope(waiter.Id, "dining");
                 affectedUsers[waiter.Id] = "dining";
             }

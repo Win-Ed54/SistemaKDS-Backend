@@ -72,7 +72,7 @@ public class OrdersController : ControllerBase
                 {
                     return StatusCode(StatusCodes.Status403Forbidden, new
                     {
-                        error = "Ya existe un mesero asignado a para llevar. Los demas solo pueden atender sus mesas o enviar para llevar desde mesa."
+                        error = "Ya existe un mesero asignado a para llevar. Los demás solo pueden atender sus mesas asignadas o enviar pedidos para llevar desde una mesa asignada."
                     });
                 }
             }
