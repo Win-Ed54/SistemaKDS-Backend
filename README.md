@@ -57,13 +57,23 @@ Esta API centraliza autenticacion, pedidos, stock, mesas, configuracion operativ
 - transferencia de mesas segun reglas operativas
 - validaciones para host, mesero, caja, cocina y admin segun el flujo
 
-## Actualizacion 27-May
+## Implementacion final
 
 - `TakeoutDestination` acepta destinos operativos para llevar: `Mostrador`, `Autoservicio`, `Delivery` y `Mesa N`.
 - Los pedidos para llevar guardan `WaiterId`, `WaiterName`, destino y direccion de delivery cuando aplica.
 - El cobro soporta pagos parciales por linea mediante `ItemPayments`, `PaidQuantity`, `PaidAmount` y `RemainingAmount`.
 - Los prepagos para llevar pueden pasar primero por caja y publicarse a cocina al quedar cobrados.
 - La auditoria de orden conserva correlativo, creador, cobrador, cancelador, metodo de pago y timestamps relevantes.
+- Las reglas de mesa evitan liberar, cancelar o reubicar cuando existen ordenes activas, cobros pendientes o limpieza en curso.
+- SignalR mantiene sincronizadas cocina, caja, mesero, host y admin sin recarga manual.
+
+## Testers
+
+- Edwin Fernandez
+- Sorayda Lopez
+- Michael Garcia
+- Eduardo Diaz
+- Miguel Zamora
 
 ## Flujo de pedidos para llevar
 
