@@ -20,6 +20,6 @@ public class CreateOrderItemDto
 
     public List<string>? Modifiers { get; set; }
 
-    [StringLength(200, ErrorMessage = "Notas no pueden exceder 200 caracteres")]
+    [StringLength(160, ErrorMessage = "Notas no pueden exceder 160 caracteres")]
     public string? Notes { get; set; }
 }

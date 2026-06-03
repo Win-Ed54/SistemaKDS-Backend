@@ -69,6 +69,7 @@ Esta API centraliza autenticacion, pedidos, stock, mesas, configuracion operativ
 
 ## Testers
 
+- Oscar Cruz
 - Edwin Fernandez
 - Sorayda Lopez
 - Michael Garcia
@@ -158,23 +159,23 @@ En `kdspro/src` existe un `.env.example` para entorno local.
 
 ## Variables para produccion
 
-Para produccion configura como minimo:
+Para produccion configura como minimo estas variables en el panel seguro del proveedor o en secretos del entorno. No pegues valores reales en README, commits, capturas ni tickets:
 
-- `ASPNETCORE_ENVIRONMENT=Production`
-- `MongoDbSettings__ConnectionString=mongodb+srv://USUARIO:CLAVE@CLUSTER.mongodb.net/?retryWrites=true&w=majority&appName=TUAPP`
-- `MongoDbSettings__DatabaseName=KDS`
-- `Jwt__Key=UNA_CLAVE_LARGA_Y_SECRETA_DE_32_BYTES_O_MAS`
-- `Jwt__Issuer=kds-api`
-- `Jwt__Audience=kds-client`
-- `CORS_ORIGINS=https://TU-FRONTEND.vercel.app`
-- `Seed__DefaultUsers=false`
+- `ASPNETCORE_ENVIRONMENT`
+- `MongoDbSettings__ConnectionString`
+- `MongoDbSettings__DatabaseName`
+- `Jwt__Key`
+- `Jwt__Issuer`
+- `Jwt__Audience`
+- `CORS_ORIGINS`
+- `Seed__DefaultUsers`
 
 Notas:
 
 - `CORS_ORIGINS` acepta varios dominios separados por coma.
 - En `docker-compose.yml` el backend tambien puede recibir `PUBLIC_ORIGIN`, que termina en `Cors__Origins__0`.
 - Railway debe apuntar al Dockerfile de `kdspro/src/kdspro.Api`.
-- MongoDB Atlas debe permitir acceso desde Railway y usar el string `mongodb+srv`.
+- MongoDB Atlas debe permitir acceso solo desde los origenes necesarios para el despliegue.
 
 ## Ejecucion local
 

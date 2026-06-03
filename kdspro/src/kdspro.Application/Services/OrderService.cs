@@ -9,6 +9,18 @@ namespace kdspro.Application.Services;
 public class OrderService : IOrderService
 {
     private const decimal TaxRate = 0.13m;
+    private static readonly HashSet<string> AllowedPaymentMethods = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "efectivo",
+        "tarjeta",
+        "transferencia",
+    };
+    private static readonly HashSet<string> AllowedDocumentTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "ticket",
+        "consumidor_final",
+        "factura",
+    };
     private static readonly string[] AllowedTakeoutDestinations =
     {
         "Mostrador",
@@ -83,11 +95,12 @@ public class OrderService : IOrderService
             string.IsNullOrWhiteSpace(item.ProductId) ||
             item.Quantity < 1 ||
             item.Quantity > settings.MaxQuantityPerProduct ||
-            (item.Notes?.Length ?? 0) > 200
+            (OrderValidationRules.NormalizeKitchenNote(item.Notes).Length > OrderValidationRules.MaxKitchenNoteLength) ||
+            !OrderValidationRules.IsKitchenNoteAllowed(item.Notes)
         );
 
         if (invalidItem != null)
-            throw new InvalidOperationException($"{invalidItem.ProductName}: maximo {settings.MaxQuantityPerProduct} unidades por producto.");
+            throw new InvalidOperationException($"{invalidItem.ProductName}: revise cantidad o notas. Las notas solo aceptan letras y simbolos permitidos.");
 
         var productsById = new Dictionary<string, Product>();
 
@@ -150,7 +163,7 @@ public class OrderService : IOrderService
                 ProductName = productsById[i.ProductId].Name,
                 UnitPrice = productsById[i.ProductId].Price,
                 Quantity = i.Quantity,
-                Notes = (i.Notes ?? string.Empty).Trim()
+                Notes = OrderValidationRules.NormalizeKitchenNote(i.Notes)
             }).ToList()
         };
 
@@ -245,6 +258,16 @@ public class OrderService : IOrderService
             throw new InvalidOperationException("La orden ya fue cobrada.");
 
         dto ??= new MarkOrderPaidDto();
+        var paymentMethod = (dto.PaymentMethod ?? "efectivo").Trim().ToLowerInvariant();
+        var documentType = (dto.DocumentType ?? "ticket").Trim().ToLowerInvariant();
+        var receiptNumber = OrderValidationRules.NormalizeReceiptNumber(dto.ReceiptNumber);
+
+        if (!AllowedPaymentMethods.Contains(paymentMethod))
+            throw new InvalidOperationException("Metodo de pago no permitido.");
+
+        if (!AllowedDocumentTypes.Contains(documentType))
+            throw new InvalidOperationException("Tipo de comprobante no permitido.");
+
         var requestedPayments = dto.ItemPayments?
             .Where(item => item.Quantity > 0)
             .ToList() ?? [];
@@ -294,9 +317,9 @@ public class OrderService : IOrderService
             order.IsPaid = true;
             order.PaidAt = DateTime.UtcNow;
             order.PaidByName = paidByName;
-            order.PaymentMethod = (dto.PaymentMethod ?? "efectivo").Trim().ToLowerInvariant();
-            order.ReceiptNumber = (dto.ReceiptNumber ?? string.Empty).Trim();
-            order.DocumentType = (dto.DocumentType ?? "ticket").Trim().ToLowerInvariant();
+            order.PaymentMethod = paymentMethod;
+            order.ReceiptNumber = receiptNumber;
+            order.DocumentType = documentType;
             order.InvoiceRequested = dto.InvoiceRequested;
         }
 
