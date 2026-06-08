@@ -354,10 +354,9 @@ public class OrderService : IOrderService
         if (cleanupCandidate == null)
             throw new InvalidOperationException($"La mesa {tableNumber} no tiene limpieza pendiente.");
 
-        var cleanupReferenceDate = cleanupCandidate.PaidAt ?? cleanupCandidate.DeliveredAt ?? cleanupCandidate.CreatedAt;
         var hasNewerOrderForSameTable = await _orderRepository.HasNewerOrdersForTableAsync(
             tableNumber,
-            cleanupReferenceDate,
+            cleanupCandidate.CreatedAt,
             cleanupCandidate.Id!
         );
 
@@ -397,10 +396,9 @@ public class OrderService : IOrderService
             .Where(o => o.TableNumber > 0)
             .OrderByDescending(o => o.PaidAt ?? o.DeliveredAt ?? o.CreatedAt))
         {
-            var cleanupReferenceDate = order.PaidAt ?? order.DeliveredAt ?? order.CreatedAt;
             var hasNewerOrderForSameTable = await _orderRepository.HasNewerOrdersForTableAsync(
                 order.TableNumber,
-                cleanupReferenceDate,
+                order.CreatedAt,
                 order.Id!
             );
 
@@ -429,6 +427,12 @@ public class OrderService : IOrderService
     {
         var order = await _orderRepository.GetByIdAsync(orderId);
         if (order == null) return;
+        if (order.Status == OrderStatus.Cancelled)
+            throw new InvalidOperationException("La orden ya fue cancelada.");
+        if (order.Status == OrderStatus.Delivered)
+            throw new InvalidOperationException("No puedes cancelar una orden ya entregada.");
+        if (order.IsPaid)
+            throw new InvalidOperationException("No puedes cancelar una orden ya cobrada.");
 
         await _orderRepository.UpdateStatusAsync(orderId, OrderStatus.Cancelled);
         await _orderRepository.SetCancelledByAsync(orderId, cancelledByName);
@@ -443,18 +447,42 @@ public class OrderService : IOrderService
                 await _notificationService.NotifyStockUpdated(item.ProductId, updated.Stock);
         }
 
-        var stillActive = await _orderRepository.HasActiveOrdersForTableAsync(order.TableNumber, orderId);
-
-        if (!stillActive)
+        if (order.TableNumber > 0)
         {
-            await _tableRepository.ClearServiceStateAsync(order.TableNumber, false);
-            var updatedTable = await _tableRepository.GetByNumberAsync(order.TableNumber);
-            if (updatedTable != null)
-                await _notificationService.NotifyTableStatusUpdated(updatedTable);
+            var stillActive = await _orderRepository.HasActiveOrdersForTableAsync(order.TableNumber, orderId);
+            var hasPendingPayment = await _orderRepository.HasPendingPaymentForTableAsync(order.TableNumber);
+            var hasPendingCleanup = await HasPendingCleanupForTableAsync(order.TableNumber);
+
+            if (!stillActive && !hasPendingPayment && !hasPendingCleanup)
+            {
+                await _tableRepository.ClearServiceStateAsync(order.TableNumber, false);
+                var updatedTable = await _tableRepository.GetByNumberAsync(order.TableNumber);
+                if (updatedTable != null)
+                    await _notificationService.NotifyTableStatusUpdated(updatedTable);
+            }
         }
 
-        var orderDto = MapToDto(order);
+        var cancelledOrder = await GetOrderById(orderId);
+        var orderDto = cancelledOrder ?? MapToDto(order);
         await _notificationService.NotifyOrderCancelled(orderDto);
+    }
+
+    private async Task<bool> HasPendingCleanupForTableAsync(int tableNumber)
+    {
+        var cleanupCandidate = (await _orderRepository.GetHistoryAsync())
+            .Where(o => o.TableNumber == tableNumber)
+            .Where(o => o.Status == OrderStatus.Delivered && o.IsPaid && !o.IsCleanupCompleted)
+            .OrderByDescending(o => o.PaidAt ?? o.DeliveredAt ?? o.CreatedAt)
+            .FirstOrDefault();
+
+        if (cleanupCandidate == null)
+            return false;
+
+        return !await _orderRepository.HasNewerOrdersForTableAsync(
+            tableNumber,
+            cleanupCandidate.CreatedAt,
+            cleanupCandidate.Id!
+        );
     }
 
     public async Task<OrderDto?> GetOrderById(string id)

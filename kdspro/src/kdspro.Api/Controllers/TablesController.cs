@@ -35,16 +35,12 @@ public class TablesController : ControllerBase
     public async Task<ActionResult<List<Table>>> GetAll()
     {
         var tables = await _repository.GetAllAsync();
+        var activeOrders = await _orderRepository.GetActiveOrdersAsync();
+        var history = await _orderRepository.GetHistoryAsync();
+
         foreach (var table in tables)
         {
-            var hasActiveOrders = await _orderRepository.HasActiveOrdersForTableAsync(
-                table.Number,
-                string.Empty);
-
-            if (hasActiveOrders)
-            {
-                table.IsOccupied = true;
-            }
+            table.IsOccupied = await IsEffectivelyOccupiedAsync(table, activeOrders, history);
         }
 
         return Ok(tables);
@@ -90,7 +86,15 @@ public class TablesController : ControllerBase
         var table = await _repository.GetByNumberAsync(tableNumber);
         if (table == null) return NotFound(new { message = "La mesa no existe." });
         if (!table.IsActive) return BadRequest(new { message = "La mesa no esta activa." });
-        if (table.IsOccupied || await _orderRepository.HasActiveOrdersForTableAsync(tableNumber, string.Empty))
+        var isEffectivelyOccupied = await IsEffectivelyOccupiedAsync(table);
+        if (!isEffectivelyOccupied && table.IsOccupied)
+        {
+            await _repository.ClearServiceStateAsync(tableNumber, false);
+            table = await _repository.GetByNumberAsync(tableNumber);
+            if (table == null) return NotFound(new { message = "La mesa no existe." });
+        }
+
+        if (isEffectivelyOccupied)
             return BadRequest(new { message = "La mesa no se encuentra libre en este momento." });
         if (table.Capacity > 0 && dto.PartySize > table.Capacity)
             return BadRequest(new { message = $"La mesa {tableNumber} admite maximo {table.Capacity} comensales." });
@@ -150,8 +154,6 @@ public class TablesController : ControllerBase
         if (cleanupCandidate != null)
         {
             var cleanupReferenceDate =
-                cleanupCandidate.PaidAt ??
-                cleanupCandidate.DeliveredAt ??
                 cleanupCandidate.CreatedAt;
 
             var hasNewerOrderForSameTable = await _orderRepository.HasNewerOrdersForTableAsync(
@@ -213,7 +215,15 @@ public class TablesController : ControllerBase
         if (targetTable == null) return NotFound(new { message = "La mesa destino no existe." });
         if (!targetTable.IsActive)
             return BadRequest(new { message = "La mesa destino no esta activa." });
-        if (targetTable.IsOccupied || await _orderRepository.HasActiveOrdersForTableAsync(dto.TargetTableNumber, string.Empty))
+        var targetTableIsOccupied = await IsEffectivelyOccupiedAsync(targetTable);
+        if (!targetTableIsOccupied && targetTable.IsOccupied)
+        {
+            await _repository.ClearServiceStateAsync(dto.TargetTableNumber, false);
+            targetTable = await _repository.GetByNumberAsync(dto.TargetTableNumber);
+            if (targetTable == null) return NotFound(new { message = "La mesa destino no existe." });
+        }
+
+        if (targetTableIsOccupied)
             return BadRequest(new { message = "La mesa destino no se encuentra libre en este momento." });
 
         var partySize = sourceTable.CurrentPartySize ?? 0;
@@ -295,5 +305,43 @@ public class TablesController : ControllerBase
 
         await _notificationService.NotifyTableStatusUpdated(updatedTable);
         return Ok(updatedTable);
+    }
+
+    private async Task<bool> IsEffectivelyOccupiedAsync(
+        Table table,
+        IEnumerable<kdspro.Domain.Entities.Order>? activeOrders = null,
+        IEnumerable<kdspro.Domain.Entities.Order>? history = null)
+    {
+        activeOrders ??= await _orderRepository.GetActiveOrdersAsync();
+        history ??= await _orderRepository.GetHistoryAsync();
+
+        var hasActiveOrders = activeOrders.Any(order => order.TableNumber == table.Number);
+        var hasPendingPayment = history.Any(order =>
+            order.TableNumber == table.Number &&
+            order.Status == kdspro.Domain.Enums.OrderStatus.Delivered &&
+            !order.IsPaid);
+        var cleanupCandidate = history
+            .Where(order => order.TableNumber == table.Number)
+            .Where(order => order.Status == kdspro.Domain.Enums.OrderStatus.Delivered && order.IsPaid && !order.IsCleanupCompleted)
+            .OrderByDescending(order => order.PaidAt ?? order.DeliveredAt ?? order.CreatedAt)
+            .FirstOrDefault();
+        var hasPendingCleanup =
+            cleanupCandidate != null &&
+            !history.Any(order =>
+                order.TableNumber == table.Number &&
+                order.Id != cleanupCandidate.Id &&
+                order.CreatedAt > cleanupCandidate.CreatedAt);
+        var hasAssignmentState =
+            (table.CurrentPartySize ?? 0) > 0 ||
+            table.OccupiedSince != null ||
+            !string.IsNullOrWhiteSpace(table.AssignedWaiterId) ||
+            !string.IsNullOrWhiteSpace(table.AssignedWaiterName);
+
+        return
+            hasActiveOrders ||
+            hasPendingPayment ||
+            hasPendingCleanup ||
+            table.IsBeingCleaned ||
+            hasAssignmentState;
     }
 }

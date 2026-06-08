@@ -103,7 +103,12 @@ public class OrderRepository : GenericRepository<Order>, IOrderRepository
         var filters = new List<FilterDefinition<Order>>
         {
             Builders<Order>.Filter.Eq(o => o.TableNumber, tableNumber),
-            Builders<Order>.Filter.Lt(o => o.Status, OrderStatus.Delivered)
+            Builders<Order>.Filter.In(o => o.Status, new[]
+            {
+                OrderStatus.Pending,
+                OrderStatus.Preparing,
+                OrderStatus.Ready
+            })
         };
 
         if (!string.IsNullOrWhiteSpace(excludeOrderId))
@@ -122,7 +127,8 @@ public class OrderRepository : GenericRepository<Order>, IOrderRepository
         var filters = new List<FilterDefinition<Order>>
         {
             Builders<Order>.Filter.Eq(o => o.TableNumber, tableNumber),
-            Builders<Order>.Filter.Gt(o => o.CreatedAt, createdAfter)
+            Builders<Order>.Filter.Gt(o => o.CreatedAt, createdAfter),
+            Builders<Order>.Filter.Ne(o => o.Status, OrderStatus.Cancelled)
         };
 
         if (!string.IsNullOrWhiteSpace(excludeOrderId))
