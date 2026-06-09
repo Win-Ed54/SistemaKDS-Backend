@@ -388,6 +388,7 @@ public class OrderService : IOrderService
     public async Task<WaiterSummaryDto> GetWaiterSummary(string userId, string username)
     {
         var allOrders = await _orderRepository.GetOrdersByWaiterAsync(userId);
+        var user = await _userRepository.GetById(userId);
         var hasDedicatedTakeoutWaiter = await _userRepository.HasWaiterWithServiceScope("takeout", userId);
         var pendingCleanupOrders = new List<OrderDto>();
 
@@ -412,6 +413,9 @@ public class OrderService : IOrderService
         {
             WaiterId = userId,
             WaiterName = username,
+            ServiceScope = string.IsNullOrWhiteSpace(user?.ServiceScope)
+                ? "hybrid"
+                : user.ServiceScope.Trim().ToLowerInvariant(),
             TotalCreated = allOrders.Count,
             TotalDelivered = allOrders.Count(o => o.Status == OrderStatus.Delivered),
             HasDedicatedTakeoutWaiter = hasDedicatedTakeoutWaiter,

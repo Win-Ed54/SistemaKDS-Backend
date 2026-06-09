@@ -158,8 +158,8 @@ public class UsersController : ControllerBase
 
     private async Task NotifyServiceScopeChanges(IReadOnlyDictionary<string, string> affectedUsers)
     {
-        await _hubContext.Clients.Groups("admin", "host").SendAsync("staffupdated");
-        await _hubContext.Clients.Groups("admin", "host").SendAsync("StaffUpdated");
+        await _hubContext.Clients.Groups("admin", "host", "waiter").SendAsync("staffupdated");
+        await _hubContext.Clients.Groups("admin", "host", "waiter").SendAsync("StaffUpdated");
 
         foreach (var entry in affectedUsers)
         {
@@ -171,6 +171,8 @@ public class UsersController : ControllerBase
                 serviceScope = entry.Value,
             };
 
+            await _hubContext.Clients.Group("waiter").SendAsync("servicescopeupdated", payload);
+            await _hubContext.Clients.Group("waiter").SendAsync("ServiceScopeUpdated", payload);
             await _hubContext.Clients.User(entry.Key).SendAsync("servicescopeupdated", payload);
             await _hubContext.Clients.User(entry.Key).SendAsync("ServiceScopeUpdated", payload);
         }

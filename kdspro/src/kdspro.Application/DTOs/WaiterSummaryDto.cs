@@ -4,6 +4,7 @@ public class WaiterSummaryDto
 {
     public string WaiterId { get; set; } = string.Empty;
     public string WaiterName { get; set; } = string.Empty;
+    public string ServiceScope { get; set; } = "hybrid";
     public int TotalCreated { get; set; }
     public int TotalDelivered { get; set; }
     public bool HasDedicatedTakeoutWaiter { get; set; }
