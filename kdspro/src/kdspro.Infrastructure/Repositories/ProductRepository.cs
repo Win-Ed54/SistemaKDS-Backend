@@ -126,4 +126,10 @@ public class ProductRepository : IProductRepository
 
         await _context.Products.UpdateOneAsync(filter, update);
     }
+    public async Task UpdateRecipeAsync(string id, List<ProductRecipeItem> recipe)
+    {
+        var filter = Builders<Product>.Filter.Eq(p => p.Id, id);
+        var update = Builders<Product>.Update.Set(product => product.Recipe, recipe ?? new List<ProductRecipeItem>());
+        await _context.Products.UpdateOneAsync(filter, update);
+    }
 }

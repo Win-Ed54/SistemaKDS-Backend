@@ -29,6 +29,7 @@ public class OrderService : IOrderService
     };
     private readonly IOrderRepository _orderRepository;
     private readonly IProductRepository _productRepository;
+    private readonly IIngredientRepository _ingredientRepository;
     private readonly ITableRepository _tableRepository;
     private readonly IUserRepository _userRepository;
     private readonly IOrderNotificationService _notificationService;
@@ -37,6 +38,7 @@ public class OrderService : IOrderService
     public OrderService(
         IOrderRepository orderRepository,
         IProductRepository productRepository,
+        IIngredientRepository ingredientRepository,
         ITableRepository tableRepository,
         IUserRepository userRepository,
         IOrderNotificationService notificationService,
@@ -44,6 +46,7 @@ public class OrderService : IOrderService
     {
         _orderRepository = orderRepository;
         _productRepository = productRepository;
+        _ingredientRepository = ingredientRepository;
         _tableRepository = tableRepository;
         _userRepository = userRepository;
         _notificationService = notificationService;
@@ -103,6 +106,11 @@ public class OrderService : IOrderService
             throw new InvalidOperationException($"{invalidItem.ProductName}: revise cantidad o notas. Las notas solo aceptan letras y simbolos permitidos.");
 
         var productsById = new Dictionary<string, Product>();
+        var ingredients = await _ingredientRepository.GetAllAsync();
+        var ingredientsById = ingredients
+            .Where(ingredient => !string.IsNullOrWhiteSpace(ingredient.Id))
+            .ToDictionary(ingredient => ingredient.Id!, ingredient => ingredient, StringComparer.OrdinalIgnoreCase);
+        var aggregatedIngredientDemand = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var item in dto.Items)
         {
@@ -113,10 +121,65 @@ public class OrderService : IOrderService
                 throw new Exception($"Stock insuficiente para: {item.ProductName}. Disponible: {product?.Stock ?? 0}");
             }
 
+            var shortages = IngredientAvailabilityService.GetShortages(product, ingredientsById, item.Quantity);
+            if (shortages.Count > 0)
+            {
+                throw new InvalidOperationException(
+                    $"Ingredientes insuficientes para {product.Name}: {string.Join(", ", shortages.Select(shortage => $"{shortage.IngredientName} ({shortage.Available}/{shortage.Required} {shortage.Unit})"))}.");
+            }
+
+            foreach (var recipeItem in product.Recipe ?? [])
+            {
+                var ingredientId = recipeItem.IngredientId ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(ingredientId)) continue;
+
+                aggregatedIngredientDemand[ingredientId] =
+                    (aggregatedIngredientDemand.TryGetValue(ingredientId, out var currentDemand) ? currentDemand : 0) +
+                    (recipeItem.QuantityRequired * item.Quantity);
+            }
+
             productsById[item.ProductId] = product;
         }
 
+        foreach (var entry in aggregatedIngredientDemand)
+        {
+            if (!ingredientsById.TryGetValue(entry.Key, out var ingredient) || ingredient == null || !ingredient.IsActive)
+            {
+                throw new InvalidOperationException("Uno de los ingredientes requeridos ya no esta disponible.");
+            }
+
+            if (ingredient.Stock < entry.Value)
+            {
+                throw new InvalidOperationException(
+                    $"No hay suficiente {ingredient.Name}. Disponible: {ingredient.Stock} {ingredient.Unit}. Requerido: {entry.Value} {ingredient.Unit}.");
+            }
+        }
+
         var updatedStocks = new Dictionary<string, int>();
+        var reservedIngredients = new List<OrderIngredientReservation>();
+        var deductedProducts = new List<(string ProductId, int Quantity)>();
+
+        foreach (var entry in aggregatedIngredientDemand)
+        {
+            if (!ingredientsById.TryGetValue(entry.Key, out var ingredient) || ingredient == null)
+                throw new InvalidOperationException("Uno de los ingredientes requeridos ya no esta disponible.");
+
+            var reserved = await _ingredientRepository.DeductStockAsync(entry.Key, entry.Value);
+            if (!reserved)
+            {
+                await RestoreReservedIngredientsAsync(reservedIngredients);
+                throw new InvalidOperationException(
+                    $"No se pudo reservar suficiente {ingredient.Name} para completar la orden.");
+            }
+
+            reservedIngredients.Add(new OrderIngredientReservation
+            {
+                IngredientId = ingredient.Id ?? string.Empty,
+                IngredientName = ingredient.Name,
+                Unit = ingredient.Unit,
+                Quantity = entry.Value,
+            });
+        }
 
         foreach (var item in dto.Items)
         {
@@ -124,9 +187,13 @@ public class OrderService : IOrderService
 
             if (!success)
             {
+                await RestoreDeductedProductsAsync(deductedProducts);
+                await RestoreReservedIngredientsAsync(reservedIngredients);
                 await _notificationService.NotifyProductOutOfStock(item.ProductId);
                 throw new Exception($"Lo sentimos. Ya no hay stock suficiente para: {item.ProductName}.");
             }
+
+            deductedProducts.Add((item.ProductId, item.Quantity));
 
             var updated = await _productRepository.GetByIdAsync(item.ProductId);
             if (updated != null)
@@ -164,10 +231,20 @@ public class OrderService : IOrderService
                 UnitPrice = productsById[i.ProductId].Price,
                 Quantity = i.Quantity,
                 Notes = OrderValidationRules.NormalizeKitchenNote(i.Notes)
-            }).ToList()
+            }).ToList(),
+            IngredientReservations = reservedIngredients
         };
 
-        await _orderRepository.CreateAsync(order);
+        try
+        {
+            await _orderRepository.CreateAsync(order);
+        }
+        catch
+        {
+            await RestoreDeductedProductsAsync(deductedProducts);
+            await RestoreReservedIngredientsAsync(reservedIngredients);
+            throw;
+        }
 
         if (dto.TableNumber > 0)
         {
@@ -451,6 +528,12 @@ public class OrderService : IOrderService
                 await _notificationService.NotifyStockUpdated(item.ProductId, updated.Stock);
         }
 
+        var ingredientReservations = order.IngredientReservations?.Count > 0
+            ? order.IngredientReservations
+            : await BuildIngredientReservationsFallbackAsync(order);
+
+        await RestoreReservedIngredientsAsync(ingredientReservations);
+
         if (order.TableNumber > 0)
         {
             var stillActive = await _orderRepository.HasActiveOrdersForTableAsync(order.TableNumber, orderId);
@@ -487,6 +570,57 @@ public class OrderService : IOrderService
             cleanupCandidate.CreatedAt,
             cleanupCandidate.Id!
         );
+    }
+
+    private async Task<List<OrderIngredientReservation>> BuildIngredientReservationsFallbackAsync(Order order)
+    {
+        var reservations = new Dictionary<string, OrderIngredientReservation>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var item in order.Items)
+        {
+            var product = await _productRepository.GetByIdAsync(item.ProductId);
+            if (product == null) continue;
+
+            foreach (var recipeItem in product.Recipe ?? [])
+            {
+                var ingredientId = recipeItem.IngredientId ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(ingredientId)) continue;
+
+                if (!reservations.TryGetValue(ingredientId, out var reservation))
+                {
+                    reservation = new OrderIngredientReservation
+                    {
+                        IngredientId = ingredientId,
+                        IngredientName = recipeItem.IngredientName,
+                        Unit = recipeItem.Unit,
+                        Quantity = 0,
+                    };
+                    reservations[ingredientId] = reservation;
+                }
+
+                reservation.Quantity += recipeItem.QuantityRequired * item.Quantity;
+            }
+        }
+
+        return reservations.Values.ToList();
+    }
+
+    private async Task RestoreDeductedProductsAsync(IEnumerable<(string ProductId, int Quantity)> deductedProducts)
+    {
+        foreach (var entry in deductedProducts)
+        {
+            if (string.IsNullOrWhiteSpace(entry.ProductId) || entry.Quantity <= 0) continue;
+            await _productRepository.RestoreStockAsync(entry.ProductId, entry.Quantity);
+        }
+    }
+
+    private async Task RestoreReservedIngredientsAsync(IEnumerable<OrderIngredientReservation> reservations)
+    {
+        foreach (var reservation in reservations)
+        {
+            if (string.IsNullOrWhiteSpace(reservation?.IngredientId) || reservation.Quantity <= 0) continue;
+            await _ingredientRepository.RestoreStockAsync(reservation.IngredientId, reservation.Quantity);
+        }
     }
 
     public async Task<OrderDto?> GetOrderById(string id)

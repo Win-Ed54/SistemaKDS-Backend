@@ -55,4 +55,12 @@ public class Product
 
   public string ImageUrl { get; set; } = "default.webp";
 
+  public List<ProductRecipeItem> Recipe { get; set; } = new();
+
+  [BsonIgnore]
+  public bool IsBlockedByIngredients { get; set; }
+
+  [BsonIgnore]
+  public List<ProductIngredientShortage> IngredientShortages { get; set; } = new();
+
 }

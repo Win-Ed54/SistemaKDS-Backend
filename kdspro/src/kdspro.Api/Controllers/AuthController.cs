@@ -3,10 +3,10 @@ using kdspro.Application.DTOs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using System.Security.Claims;
 
 namespace kdspro.Api.Controllers;
 
-[AllowAnonymous]
 [ApiController]
 [Route("api/auth")]
 public class AuthController : ControllerBase
@@ -19,10 +19,14 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("login")]
+    [AllowAnonymous]
     [EnableRateLimiting("auth")]
     public async Task<IActionResult> Login(LoginDto dto)
     {
         var result = await _auth.Login(dto.Username, dto.Password);
+        if (result.isSessionBlocked)
+            return Conflict(new { message = result.errorMessage });
+
         if (result.token == null)
             return Unauthorized(new { message = "No se pudo iniciar sesion." });
 
@@ -33,13 +37,14 @@ public class AuthController : ControllerBase
             token = result.token,
             role = result.role,
             serviceScope = result.serviceScope,
+            requiresPasswordChange = result.requiresPasswordChange,
             refreshToken,
             expiresIn = 43200
         });
     }
 
-    [AllowAnonymous]
     [HttpPost("refresh")]
+    [AllowAnonymous]
     [EnableRateLimiting("auth")]
     public async Task<IActionResult> Refresh([FromBody] RefreshTokenDto dto)
     {
@@ -57,15 +62,17 @@ public class AuthController : ControllerBase
         });
     }
 
+    [Authorize]
     [HttpPost("logout")]
     public async Task<IActionResult> Logout([FromBody] RefreshTokenDto dto)
     {
-        await _auth.RevokeRefreshToken(dto.RefreshToken);
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        await _auth.Logout(userId ?? string.Empty, dto.RefreshToken);
         return NoContent();
     }
 
-    [AllowAnonymous]
     [HttpPost("recover-password")]
+    [AllowAnonymous]
     [EnableRateLimiting("auth")]
     public async Task<IActionResult> RecoverPassword([FromBody] RecoverPasswordDto dto)
     {
@@ -80,8 +87,23 @@ public class AuthController : ControllerBase
         return NoContent();
     }
 
-    [AllowAnonymous]
+    [Authorize]
+    [HttpPost("change-password")]
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto dto)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(userId))
+            return Unauthorized(new { message = "No se pudo identificar la sesion." });
+
+        var changed = await _auth.ChangePassword(userId, dto.CurrentPassword, dto.NewPassword);
+        if (!changed)
+            return BadRequest(new { message = "No se pudo actualizar la contrasena." });
+
+        return NoContent();
+    }
+
     [HttpGet("health")]
+    [AllowAnonymous]
     public IActionResult Health()
     {
         return Ok(new

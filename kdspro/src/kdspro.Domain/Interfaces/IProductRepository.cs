@@ -49,4 +49,6 @@ public interface IProductRepository
 
     Task RestoreStockAsync(string productId, int quantity);
 
+    Task UpdateRecipeAsync(string id, List<ProductRecipeItem> recipe);
+
 }

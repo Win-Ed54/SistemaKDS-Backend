@@ -26,29 +26,35 @@ public class AuthService
         _refreshTokens = database.GetCollection<RefreshToken>("RefreshTokens");
     }
 
-    public async Task<(string? token, string? role, string? userId, string? serviceScope)> Login(
+    public async Task<(string? token, string? role, string? userId, string? serviceScope, bool requiresPasswordChange, string? errorMessage, bool isSessionBlocked)> Login(
         string username, string password)
     {
-        if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
-            return (null, null, null, null);
+        if (string.IsNullOrWhiteSpace(username))
+            return (null, null, null, null, false, null, false);
 
         var normalizedUsername = username.Trim();
         var user = await _users.GetByUsername(normalizedUsername);
-        if (user == null) return (null, null, null, null);
+        if (user == null || !user.IsActive) return (null, null, null, null, false, null, false);
 
-        var isValidPassword = await VerifyPassword(user, password);
+        var isValidPassword = await VerifyPassword(user, password, AllowDemoLogin());
         if (!isValidPassword)
-            return (null, null, null, null);
+            return (null, null, null, null, false, null, false);
+
+        if (await IsSessionInUse(user))
+        {
+            return (null, null, null, null, false, "La cuenta ya esta en uso. Debe cerrarse sesion antes de volver a entrar.", true);
+        }
 
         var sessionId = Guid.NewGuid().ToString("N");
         await _users.UpdateCurrentSessionId(user.Id, sessionId);
+        await _users.UpdateLoginMetadata(user.Id, DateTime.UtcNow);
         await RevokeAllRefreshTokens(user.Id);
         user.CurrentSessionId = sessionId;
 
         var role = NormalizeRole(user.Role);
         var serviceScope = NormalizeServiceScope(user.ServiceScope);
 
-        return (GenerateToken(user), role, user.Id, serviceScope);
+        return (GenerateToken(user), role, user.Id, serviceScope, user.MustChangePassword, null, false);
     }
 
     private string GenerateToken(User user)
@@ -149,6 +155,19 @@ public class AuthService
             Builders<RefreshToken>.Update.Set(token => token.IsRevoked, true));
     }
 
+    public async Task Logout(string userId, string? refreshToken)
+    {
+        if (!string.IsNullOrWhiteSpace(refreshToken))
+        {
+            await RevokeRefreshToken(refreshToken);
+        }
+
+        if (string.IsNullOrWhiteSpace(userId)) return;
+
+        await RevokeAllRefreshTokens(userId);
+        await _users.UpdateCurrentSessionId(userId, string.Empty);
+    }
+
     public async Task<bool> RecoverPassword(string username, string newPassword, string recoveryKey)
     {
         if (string.IsNullOrWhiteSpace(username) ||
@@ -163,7 +182,27 @@ public class AuthService
         var user = await _users.GetByUsername(username.Trim());
         if (user == null) return false;
 
-        await _users.UpdatePasswordHash(user.Id, BCrypt.Net.BCrypt.HashPassword(newPassword));
+        await _users.UpdatePasswordState(user.Id, BCrypt.Net.BCrypt.HashPassword(newPassword), false);
+        return true;
+    }
+
+    public async Task<bool> ChangePassword(string userId, string currentPassword, string newPassword)
+    {
+        if (string.IsNullOrWhiteSpace(userId) ||
+            string.IsNullOrWhiteSpace(currentPassword) ||
+            string.IsNullOrWhiteSpace(newPassword))
+            return false;
+
+        var user = await _users.GetById(userId);
+        if (user == null || !user.IsActive) return false;
+
+        var currentPasswordMatches = await VerifyPassword(user, currentPassword, AllowDemoLogin());
+        if (!currentPasswordMatches) return false;
+
+        if (string.Equals(currentPassword, newPassword, StringComparison.Ordinal))
+            return false;
+
+        await _users.UpdatePasswordState(user.Id, BCrypt.Net.BCrypt.HashPassword(newPassword), false);
         return true;
     }
 
@@ -187,8 +226,36 @@ public class AuthService
                CryptographicOperations.FixedTimeEquals(configuredBytes, providedBytes);
     }
 
-    private async Task<bool> VerifyPassword(User user, string password)
+    private bool AllowDemoLogin()
     {
+        return bool.TryParse(_configuration["Auth:AllowDemoLogin"], out var enabled) && enabled;
+    }
+
+    private async Task<bool> IsSessionInUse(User user)
+    {
+        if (string.IsNullOrWhiteSpace(user?.Id) || string.IsNullOrWhiteSpace(user.CurrentSessionId))
+        {
+            return false;
+        }
+
+        var activeTokenFilter =
+            Builders<RefreshToken>.Filter.Eq(token => token.UserId, user.Id) &
+            Builders<RefreshToken>.Filter.Eq(token => token.SessionId, user.CurrentSessionId) &
+            Builders<RefreshToken>.Filter.Eq(token => token.IsRevoked, false) &
+            Builders<RefreshToken>.Filter.Gt(token => token.Expires, DateTime.UtcNow);
+
+        return await _refreshTokens.Find(activeTokenFilter).AnyAsync();
+    }
+
+    private async Task<bool> VerifyPassword(User user, string password, bool allowDemoLogin)
+    {
+        if (allowDemoLogin &&
+            user.IsDemoAccount &&
+            string.IsNullOrWhiteSpace(password))
+        {
+            return true;
+        }
+
         if (string.IsNullOrWhiteSpace(user.PasswordHash)) return false;
 
         if (IsBCryptHash(user.PasswordHash))

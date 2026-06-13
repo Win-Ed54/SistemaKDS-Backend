@@ -69,6 +69,7 @@ public class Order
     // --- CONTENIDO ---
 
     public List<OrderItem> Items { get; set; } = new();
+    public List<OrderIngredientReservation> IngredientReservations { get; set; } = new();
 
     [BsonRepresentation(BsonType.String)]
     public OrderStatus Status { get; set; } = OrderStatus.Pending;

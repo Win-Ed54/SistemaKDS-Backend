@@ -30,6 +30,20 @@ public class UserRepository : IUserRepository
             .FirstOrDefaultAsync();
     }
 
+    public async Task<User?> GetByEmail(string email)
+    {
+        if (string.IsNullOrWhiteSpace(email)) return null;
+
+        var normalizedEmail = email.Trim();
+        var emailFilter = Builders<User>.Filter.Regex(
+            user => user.Email,
+            new BsonRegularExpression($"^\\s*{Regex.Escape(normalizedEmail)}\\s*$", "i"));
+
+        return await _users
+            .Find(emailFilter)
+            .FirstOrDefaultAsync();
+    }
+
     public async Task<User?> GetById(string id)
     {
         if (string.IsNullOrWhiteSpace(id)) return null;
@@ -92,6 +106,17 @@ public class UserRepository : IUserRepository
             Builders<User>.Update.Set(user => user.PasswordHash, passwordHash));
     }
 
+    public async Task UpdatePasswordState(string id, string passwordHash, bool mustChangePassword)
+    {
+        if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(passwordHash)) return;
+
+        await _users.UpdateOneAsync(
+            user => user.Id == id,
+            Builders<User>.Update
+                .Set(user => user.PasswordHash, passwordHash)
+                .Set(user => user.MustChangePassword, mustChangePassword));
+    }
+
     public async Task UpdateCurrentSessionId(string id, string sessionId)
     {
         if (string.IsNullOrWhiteSpace(id)) return;
@@ -101,6 +126,15 @@ public class UserRepository : IUserRepository
             Builders<User>.Update.Set(user => user.CurrentSessionId, sessionId ?? string.Empty));
     }
 
+    public async Task UpdateLoginMetadata(string id, DateTime lastLoginAtUtc)
+    {
+        if (string.IsNullOrWhiteSpace(id)) return;
+
+        await _users.UpdateOneAsync(
+            user => user.Id == id,
+            Builders<User>.Update.Set(user => user.LastLoginAt, lastLoginAtUtc));
+    }
+
     public async Task UpdateServiceScope(string id, string serviceScope)
     {
         if (string.IsNullOrWhiteSpace(id)) return;
@@ -108,5 +142,14 @@ public class UserRepository : IUserRepository
         await _users.UpdateOneAsync(
             user => user.Id == id,
             Builders<User>.Update.Set(user => user.ServiceScope, serviceScope ?? "hybrid"));
+    }
+
+    public async Task UpdateActiveState(string id, bool isActive)
+    {
+        if (string.IsNullOrWhiteSpace(id)) return;
+
+        await _users.UpdateOneAsync(
+            user => user.Id == id,
+            Builders<User>.Update.Set(user => user.IsActive, isActive));
     }
 }

@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using kdspro.Api.Hubs;
+using kdspro.Application.Services;
 using kdspro.Application.DTOs;
 using kdspro.Domain.Entities;
 using kdspro.Domain.Interfaces;
@@ -22,15 +23,18 @@ public class ProductsController : ControllerBase
     private readonly IProductRepository _productRepository;
     private readonly IHubContext<OrdersHub> _hub;
     private readonly IWebHostEnvironment _environment;
+    private readonly IIngredientRepository _ingredientRepository;
 
     public ProductsController(
         IProductRepository productRepository,
         IHubContext<OrdersHub> hub,
-        IWebHostEnvironment environment)
+        IWebHostEnvironment environment,
+        IIngredientRepository ingredientRepository)
     {
         _productRepository = productRepository;
         _hub = hub;
         _environment = environment;
+        _ingredientRepository = ingredientRepository;
     }
 
     [Authorize(Roles = "waiter,admin,kitchen")]
@@ -38,6 +42,16 @@ public class ProductsController : ControllerBase
     public async Task<ActionResult<List<Product>>> GetAll()
     {
         var products = await _productRepository.GetAllAsync();
+        var ingredients = await _ingredientRepository.GetAllAsync();
+        var ingredientsById = ingredients
+            .Where(ingredient => !string.IsNullOrWhiteSpace(ingredient.Id))
+            .ToDictionary(ingredient => ingredient.Id!, ingredient => ingredient, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var product in products)
+        {
+            IngredientAvailabilityService.ApplyAvailability(product, ingredientsById);
+        }
+
         return Ok(products);
     }
 
@@ -47,6 +61,13 @@ public class ProductsController : ControllerBase
     {
         var product = await _productRepository.GetByIdAsync(id);
         if (product == null) return NotFound(new { message = "Producto no encontrado" });
+
+        var ingredients = await _ingredientRepository.GetAllAsync();
+        var ingredientsById = ingredients
+            .Where(ingredient => !string.IsNullOrWhiteSpace(ingredient.Id))
+            .ToDictionary(ingredient => ingredient.Id!, ingredient => ingredient, StringComparer.OrdinalIgnoreCase);
+        IngredientAvailabilityService.ApplyAvailability(product, ingredientsById);
+
         return Ok(product);
     }
 
@@ -100,6 +121,11 @@ public class ProductsController : ControllerBase
         if (string.IsNullOrWhiteSpace(product.ImageUrl) || product.ImageUrl == "default.webp")
         {
             product.ImageUrl = existing.ImageUrl;
+        }
+
+        if (product.Recipe == null || product.Recipe.Count == 0)
+        {
+            product.Recipe = existing.Recipe ?? new List<ProductRecipeItem>();
         }
 
         var validationError = ValidateProduct(product);
@@ -159,6 +185,39 @@ public class ProductsController : ControllerBase
             Console.WriteLine($">>> Error actualizando stock: {ex.Message}");
             return StatusCode(500, new { error = "No se pudo actualizar el stock." });
         }
+    }
+
+    [Authorize(Roles = "admin")]
+    [HttpPut("{id}/recipe")]
+    public async Task<IActionResult> UpdateRecipe(string id, [FromBody] UpdateProductRecipeDto dto)
+    {
+        var product = await _productRepository.GetByIdAsync(id);
+        if (product == null) return NotFound(new { message = "Producto no encontrado" });
+
+        var ingredients = await _ingredientRepository.GetAllAsync();
+        var ingredientsById = ingredients.ToDictionary(
+            ingredient => ingredient.Id ?? string.Empty,
+            ingredient => ingredient,
+            StringComparer.OrdinalIgnoreCase);
+
+        var recipe = new List<ProductRecipeItem>();
+        foreach (var item in dto.Items ?? [])
+        {
+            if (!ingredientsById.TryGetValue(item.IngredientId, out var ingredient) || ingredient == null)
+                return BadRequest(new { message = "Uno de los ingredientes seleccionados ya no existe." });
+
+            recipe.Add(new ProductRecipeItem
+            {
+                IngredientId = ingredient.Id ?? string.Empty,
+                IngredientName = ingredient.Name,
+                Unit = ingredient.Unit,
+                QuantityRequired = item.QuantityRequired,
+            });
+        }
+
+        await _productRepository.UpdateRecipeAsync(id, recipe);
+        await NotifyProductCatalogUpdated();
+        return NoContent();
     }
 
     private async Task NotifyProductCatalogUpdated()

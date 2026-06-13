@@ -126,6 +126,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 {
                     var user = task.Result;
                     if (user == null ||
+                        !user.IsActive ||
                         string.IsNullOrWhiteSpace(user.CurrentSessionId) ||
                         !string.Equals(user.CurrentSessionId, sessionId, StringComparison.Ordinal))
                     {
@@ -209,6 +210,7 @@ builder.Services.AddScoped<IMongoDatabase>(sp =>
 builder.Services.AddSingleton<IUserIdProvider, NameIdentifierUserIdProvider>();
 builder.Services.AddScoped<MongoDbContext>();
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
+builder.Services.AddScoped<IIngredientRepository, IngredientRepository>();
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 builder.Services.AddScoped<ITableRepository, TableRepository>();
 builder.Services.AddScoped<IKdsSettingsRepository, KdsSettingsRepository>();
