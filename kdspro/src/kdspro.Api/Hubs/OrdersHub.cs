@@ -32,11 +32,7 @@ public class OrdersHub : Hub
 
     public async Task RegisterPresence(string browser, string? userAgent = null)
     {
-        var userId = Context.User?.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty;
-        var username = Context.User?.FindFirstValue(ClaimTypes.Name) ?? string.Empty;
-        var role = Context.User?.FindFirstValue(ClaimTypes.Role)?.Trim().ToLowerInvariant() ?? string.Empty;
-
-        if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(role) || !AllowedRoles.Contains(role))
+        if (!TryGetPresenceIdentity(out var userId, out var username, out var role))
         {
             return;
         }
@@ -49,6 +45,12 @@ public class OrdersHub : Hub
 
     public Task HeartbeatPresence()
     {
+        if (_presenceTracker.GetByConnectionId(Context.ConnectionId) == null &&
+            TryGetPresenceIdentity(out var userId, out var username, out var role))
+        {
+            _presenceTracker.Upsert(Context.ConnectionId, userId, username, role, "Unknown", string.Empty);
+        }
+
         _presenceTracker.Heartbeat(Context.ConnectionId);
         return Task.CompletedTask;
     }
@@ -84,6 +86,15 @@ public class OrdersHub : Hub
             await Groups.AddToGroupAsync(Context.ConnectionId, CashierGroup);
         }
 
+        if (TryGetPresenceIdentity(out var userId, out var username, out var normalizedRole))
+        {
+            // Registrar presencia basica al conectar evita falsos "desconectado"
+            // si RegisterPresence falla o llega mas tarde desde el cliente.
+            _presenceTracker.Upsert(Context.ConnectionId, userId, username, normalizedRole, "Unknown", string.Empty);
+            await Clients.Group(HostGroup).SendAsync("presenceupdated");
+            await Clients.Group(AdminGroup).SendAsync("presenceupdated");
+        }
+
         Console.WriteLine($"🟢 Cliente conectado: {Context.ConnectionId} | Rol: {role}");
 
         await base.OnConnectedAsync();
@@ -99,5 +110,17 @@ public class OrdersHub : Hub
 
         Console.WriteLine($"🔴 Cliente desconectado: {Context.ConnectionId}");
         await base.OnDisconnectedAsync(exception);
+    }
+
+    private bool TryGetPresenceIdentity(out string userId, out string username, out string role)
+    {
+        userId = Context.User?.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty;
+        username = Context.User?.FindFirstValue(ClaimTypes.Name) ?? string.Empty;
+        role = Context.User?.FindFirstValue(ClaimTypes.Role)?.Trim().ToLowerInvariant() ?? string.Empty;
+
+        return
+            !string.IsNullOrWhiteSpace(userId) &&
+            !string.IsNullOrWhiteSpace(role) &&
+            AllowedRoles.Contains(role);
     }
 }
