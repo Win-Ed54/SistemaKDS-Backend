@@ -1,8 +1,10 @@
 using kdspro.Api.Services;
+using kdspro.Api.Hubs;
 using kdspro.Application.DTOs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.SignalR;
 using System.Security.Claims;
 
 namespace kdspro.Api.Controllers;
@@ -12,10 +14,12 @@ namespace kdspro.Api.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly AuthService _auth;
+    private readonly IHubContext<OrdersHub> _hubContext;
 
-    public AuthController(AuthService auth)
+    public AuthController(AuthService auth, IHubContext<OrdersHub> hubContext)
     {
         _auth = auth;
+        _hubContext = hubContext;
     }
 
     [HttpPost("login")]
@@ -24,13 +28,11 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> Login(LoginDto dto)
     {
         var result = await _auth.Login(dto.Username, dto.Password);
-        if (result.isSessionBlocked)
-            return Conflict(new { message = result.errorMessage });
-
         if (result.token == null)
             return Unauthorized(new { message = "No se pudo iniciar sesion." });
 
         var refreshToken = await _auth.GenerateRefreshToken(result.userId!);
+        await NotifyUserSessionReplaced(result.userId!);
 
         return Ok(new
         {
@@ -111,5 +113,19 @@ public class AuthController : ControllerBase
             status = "ok",
             serverTime = DateTime.UtcNow
         });
+    }
+
+    private async Task NotifyUserSessionReplaced(string userId)
+    {
+        if (string.IsNullOrWhiteSpace(userId)) return;
+
+        var payload = new
+        {
+            userId,
+            reason = "session_replaced",
+        };
+
+        await _hubContext.Clients.User(userId).SendAsync("sessionrevoked", payload);
+        await _hubContext.Clients.User(userId).SendAsync("SessionRevoked", payload);
     }
 }

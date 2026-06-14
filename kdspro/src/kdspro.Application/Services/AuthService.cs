@@ -26,24 +26,19 @@ public class AuthService
         _refreshTokens = database.GetCollection<RefreshToken>("RefreshTokens");
     }
 
-    public async Task<(string? token, string? role, string? userId, string? serviceScope, bool requiresPasswordChange, string? errorMessage, bool isSessionBlocked)> Login(
+    public async Task<(string? token, string? role, string? userId, string? serviceScope, bool requiresPasswordChange)> Login(
         string username, string password)
     {
         if (string.IsNullOrWhiteSpace(username))
-            return (null, null, null, null, false, null, false);
+            return (null, null, null, null, false);
 
         var normalizedUsername = username.Trim();
         var user = await _users.GetByUsername(normalizedUsername);
-        if (user == null || !user.IsActive) return (null, null, null, null, false, null, false);
+        if (user == null || !user.IsActive) return (null, null, null, null, false);
 
         var isValidPassword = await VerifyPassword(user, password, AllowDemoLogin());
         if (!isValidPassword)
-            return (null, null, null, null, false, null, false);
-
-        if (await IsSessionInUse(user))
-        {
-            return (null, null, null, null, false, "La cuenta ya esta en uso. Debe cerrarse sesion antes de volver a entrar.", true);
-        }
+            return (null, null, null, null, false);
 
         var sessionId = Guid.NewGuid().ToString("N");
         await _users.UpdateCurrentSessionId(user.Id, sessionId);
@@ -54,7 +49,7 @@ public class AuthService
         var role = NormalizeRole(user.Role);
         var serviceScope = NormalizeServiceScope(user.ServiceScope);
 
-        return (GenerateToken(user), role, user.Id, serviceScope, user.MustChangePassword, null, false);
+        return (GenerateToken(user), role, user.Id, serviceScope, user.MustChangePassword);
     }
 
     private string GenerateToken(User user)
@@ -229,22 +224,6 @@ public class AuthService
     private bool AllowDemoLogin()
     {
         return bool.TryParse(_configuration["Auth:AllowDemoLogin"], out var enabled) && enabled;
-    }
-
-    private async Task<bool> IsSessionInUse(User user)
-    {
-        if (string.IsNullOrWhiteSpace(user?.Id) || string.IsNullOrWhiteSpace(user.CurrentSessionId))
-        {
-            return false;
-        }
-
-        var activeTokenFilter =
-            Builders<RefreshToken>.Filter.Eq(token => token.UserId, user.Id) &
-            Builders<RefreshToken>.Filter.Eq(token => token.SessionId, user.CurrentSessionId) &
-            Builders<RefreshToken>.Filter.Eq(token => token.IsRevoked, false) &
-            Builders<RefreshToken>.Filter.Gt(token => token.Expires, DateTime.UtcNow);
-
-        return await _refreshTokens.Find(activeTokenFilter).AnyAsync();
     }
 
     private async Task<bool> VerifyPassword(User user, string password, bool allowDemoLogin)
