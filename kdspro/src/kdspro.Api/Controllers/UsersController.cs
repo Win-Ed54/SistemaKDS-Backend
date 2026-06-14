@@ -320,6 +320,26 @@ public class UsersController : ControllerBase
         });
     }
 
+    [HttpDelete("{id}")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> DeleteUser(string id)
+    {
+        var user = await _users.GetById(id);
+        if (user == null) return NotFound(new { message = "Usuario no encontrado." });
+        if (IsProtectedManager(user))
+            return BadRequest(new { message = "Las cuentas de gerencia no pueden eliminarse desde este panel." });
+        if (!user.IsDemoAccount)
+            return BadRequest(new { message = "Solo los perfiles demo pueden eliminarse desde este panel." });
+
+        await _users.UpdateCurrentSessionId(id, string.Empty);
+        await _authService.RevokeAllRefreshTokens(id);
+        await NotifyUserSessionRevoked(id, "account_deleted");
+        await _users.Delete(id);
+        await NotifyServiceScopeChanges(new Dictionary<string, string>());
+
+        return NoContent();
+    }
+
     private async Task NotifyServiceScopeChanges(IReadOnlyDictionary<string, string> affectedUsers)
     {
         await _hubContext.Clients.Groups("admin", "host", "waiter").SendAsync("staffupdated");

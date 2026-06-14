@@ -152,4 +152,11 @@ public class UserRepository : IUserRepository
             user => user.Id == id,
             Builders<User>.Update.Set(user => user.IsActive, isActive));
     }
+
+    public async Task Delete(string id)
+    {
+        if (string.IsNullOrWhiteSpace(id)) return;
+
+        await _users.DeleteOneAsync(user => user.Id == id);
+    }
 }

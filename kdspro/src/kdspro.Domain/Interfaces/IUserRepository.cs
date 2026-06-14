@@ -17,4 +17,5 @@ public interface IUserRepository
     Task UpdateServiceScope(string id, string serviceScope);
     Task UpdateLoginMetadata(string id, DateTime lastLoginAtUtc);
     Task UpdateActiveState(string id, bool isActive);
+    Task Delete(string id);
 }
