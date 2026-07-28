@@ -4,6 +4,10 @@ API del sistema KDS para restaurantes, construida con .NET 8, MongoDB y SignalR.
 
 Esta API centraliza autenticacion, pedidos, stock, mesas, configuracion operativa y eventos en tiempo real para cocina, meseros, caja, host y administracion.
 
+## Documentacion adicional
+
+- [Arquitectura del backend](./ARCHITECTURE.md)
+
 ## Stack
 
 - .NET 8
@@ -18,6 +22,26 @@ Esta API centraliza autenticacion, pedidos, stock, mesas, configuracion operativ
 - `kdspro/src/kdspro.Application`: DTOs, servicios y reglas de negocio
 - `kdspro/src/kdspro.Infrastructure`: persistencia MongoDB, repositorios y seed
 - `kdspro/src/kdspro.Api`: controladores, hubs y configuracion HTTP
+
+## Mapa del codigo
+
+- `kdspro/src/kdspro.Api/Program.cs`
+  Configuracion de auth, CORS, SignalR, middleware y seed.
+- `kdspro/src/kdspro.Api/Controllers`
+  Entrada HTTP por modulo y validaciones previas por rol o contexto.
+- `kdspro/src/kdspro.Application/Services`
+  Reglas de negocio reales.
+- `kdspro/src/kdspro.Infrastructure/Repositories`
+  Persistencia MongoDB y consultas especializadas.
+- `kdspro/src/kdspro.Domain/Entities`
+  Modelo base del sistema.
+
+Archivos de referencia:
+
+- `kdspro/src/kdspro.Application/Services/OrderService.cs`: creacion, cobro, cancelacion y limpieza.
+- `kdspro/src/kdspro.Api/Controllers/OrdersController.cs`: permisos y flujo HTTP de pedidos.
+- `kdspro/src/kdspro.Api/Services/OrderNotificationService.cs`: emision de eventos SignalR.
+- `kdspro/src/kdspro.Infrastructure/Persistence/MongoDbContext.cs`: colecciones Mongo.
 
 ## Modulos principales
 

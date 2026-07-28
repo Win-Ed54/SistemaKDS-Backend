@@ -10,11 +10,19 @@ namespace kdspro.Api.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
+/// <summary>
+/// Expone operaciones de pedido y aplica restricciones por rol antes
+/// de delegar la logica fuerte al servicio de aplicacion.
+/// </summary>
 public class OrdersController : ControllerBase
 {
     private readonly IOrderService _orderService;
     private readonly ITableRepository _tableRepository;
     private readonly IUserRepository _userRepository;
+    /// <summary>
+    /// Alcances operativos validos para meseros. Se normalizan para evitar
+    /// rechazos por mayusculas, espacios o datos heredados.
+    /// </summary>
     private static readonly HashSet<string> ValidServiceScopes = new(StringComparer.OrdinalIgnoreCase)
     {
         "dining",
@@ -29,6 +37,10 @@ public class OrdersController : ControllerBase
         _userRepository = userRepository;
     }
 
+    /// <summary>
+    /// Crea una orden nueva aplicando reglas de asignacion por rol, mesa y
+    /// alcance del mesero antes de delegar el alta al servicio.
+    /// </summary>
     [Authorize(Roles = "waiter,admin")]
     [HttpPost]
     public async Task<IActionResult> CreateOrder([FromBody] CreateOrderDto dto)
@@ -77,6 +89,7 @@ public class OrdersController : ControllerBase
                 }
             }
 
+            // Las ordenes de mesa solo pueden salir de mesas sentadas y asignadas.
             if (dto.TableNumber > 0)
             {
                 var table = await _tableRepository.GetByNumberAsync(dto.TableNumber);
@@ -121,6 +134,9 @@ public class OrdersController : ControllerBase
 
     [Authorize(Roles = "kitchen,admin")]
     [HttpPatch("{id}/preparing")]
+    /// <summary>
+    /// Marca una orden como en preparacion y registra quien la tomo en cocina.
+    /// </summary>
     public async Task<IActionResult> Preparing(string id)
     {
         var username = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "Cocina";
@@ -133,6 +149,9 @@ public class OrdersController : ControllerBase
 
     [Authorize(Roles = "kitchen,admin")]
     [HttpPatch("{id}/ready")]
+    /// <summary>
+    /// Marca la orden como lista para despacho y devuelve el estado actualizado.
+    /// </summary>
     public async Task<IActionResult> Ready(string id)
     {
         var username = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "Cocina";
@@ -144,6 +163,9 @@ public class OrdersController : ControllerBase
 
     [Authorize(Roles = "waiter,admin")]
     [HttpPatch("{id}/finish")]
+    /// <summary>
+    /// Confirma que la orden ya fue entregada al cliente.
+    /// </summary>
     public async Task<IActionResult> Finish(string id)
     {
         await _orderService.SetFinished(id);
@@ -152,6 +174,9 @@ public class OrdersController : ControllerBase
 
     [Authorize(Roles = "admin,cashier")]
     [HttpPatch("{id}/pay")]
+    /// <summary>
+    /// Registra el cobro parcial o total de una orden entregada.
+    /// </summary>
     public async Task<IActionResult> Pay(string id, [FromBody] MarkOrderPaidDto dto)
     {
         try
@@ -169,6 +194,9 @@ public class OrdersController : ControllerBase
 
     [Authorize(Roles = "admin")]
     [HttpPatch("{id}/cancel")]
+    /// <summary>
+    /// Cancela una orden activa y dispara la restitucion de inventario.
+    /// </summary>
     public async Task<IActionResult> Cancel(string id)
     {
         var username = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "Admin";
@@ -178,16 +206,25 @@ public class OrdersController : ControllerBase
 
     [Authorize(Roles = "kitchen,admin")]
     [HttpGet("active")]
+    /// <summary>
+    /// Devuelve las ordenes visibles para la cola activa de cocina.
+    /// </summary>
     public async Task<ActionResult<List<OrderDto>>> GetActiveOrders() =>
         Ok(await _orderService.GetActiveOrders());
 
     [Authorize(Roles = "admin,cashier")]
     [HttpGet("history")]
+    /// <summary>
+    /// Devuelve el historial operativo incluyendo ventas listas para cobro.
+    /// </summary>
     public async Task<ActionResult<List<OrderDto>>> GetHistory() =>
         Ok(await _orderService.GetHistory());
 
     [Authorize(Roles = "admin")]
     [HttpGet("top-products")]
+    /// <summary>
+    /// Calcula un ranking simple de productos vendidos a partir del historial.
+    /// </summary>
     public async Task<IActionResult> GetTopProducts([FromQuery] int limit = 10)
     {
         var history = await _orderService.GetHistory();
@@ -212,6 +249,9 @@ public class OrdersController : ControllerBase
 
     [Authorize(Roles = "waiter")]
     [HttpGet("my")]
+    /// <summary>
+    /// Lista las ordenes activas del mesero autenticado.
+    /// </summary>
     public async Task<IActionResult> GetMyOrders()
     {
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
@@ -223,6 +263,10 @@ public class OrdersController : ControllerBase
 
     [Authorize(Roles = "waiter,admin")]
     [HttpGet("waiter/{waiterName}/today")]
+    /// <summary>
+    /// Obtiene las ordenes del dia para un mesero. Si el llamador es mesero,
+    /// siempre se usa su identidad autenticada aunque la ruta traiga otro valor.
+    /// </summary>
     public async Task<ActionResult<IEnumerable<OrderDto>>> GetWaiterOrdersToday(string waiterName)
     {
         try
@@ -245,6 +289,10 @@ public class OrdersController : ControllerBase
 
     [Authorize(Roles = "waiter,admin")]
     [HttpPatch("table/{tableNumber}/close")]
+    /// <summary>
+    /// Cierra el ciclo de servicio de una mesa una vez que no quedan ordenes,
+    /// pagos ni limpieza pendiente.
+    /// </summary>
     public async Task<IActionResult> CloseTable(int tableNumber)
     {
         try
@@ -289,6 +337,7 @@ public class OrdersController : ControllerBase
 
     private static string NormalizeServiceScope(string? serviceScope)
     {
+        // "hybrid" es el comportamiento seguro por defecto cuando el dato no existe.
         var normalized = string.IsNullOrWhiteSpace(serviceScope)
             ? "hybrid"
             : serviceScope.Trim().ToLowerInvariant();

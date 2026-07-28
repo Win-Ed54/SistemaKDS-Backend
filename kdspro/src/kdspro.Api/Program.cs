@@ -20,11 +20,11 @@ using Microsoft.AspNetCore.HttpOverrides;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// --- LOGGING ---
+// Logging basico para desarrollo local, Docker y proveedores con stdout.
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 
-// --- CONTROLADORES CON NEWTONSOFT ---
+// Controllers + Newtonsoft para conservar camelCase y enums string tambien en API y hub.
 builder.Services.AddControllers()
     .AddNewtonsoftJson(options =>
     {
@@ -35,12 +35,14 @@ builder.Services.AddControllers()
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
+    // Respeta proxy inverso (Railway, Nginx, etc.) para esquema e IP originales.
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
 });
 builder.Services.AddSwaggerGen(options => {
     /* ... Tu configuración de Swagger actual es correcta ... */
 });
 
+// Limita intentos de autenticacion para reducir abuso sobre login y refresh.
 builder.Services.AddRateLimiter(options =>
 {
     options.AddFixedWindowLimiter("auth", limiterOptions =>
@@ -52,7 +54,7 @@ builder.Services.AddRateLimiter(options =>
     });
 });
 
-// --- JWT AUTHENTICATION (Optimizado para SignalR) ---
+// JWT compartido por API y SignalR.
 var jwtKey = builder.Configuration["Jwt:Key"];
 if (string.IsNullOrWhiteSpace(jwtKey))
 {
@@ -75,7 +77,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         ValidIssuer = builder.Configuration["Jwt:Issuer"],
         ValidateAudience = true,
         ValidAudience = builder.Configuration["Jwt:Audience"],
-        ValidateLifetime = true, // Es mejor validarlo para estabilidad real
+        ValidateLifetime = true, // Mantiene sesiones caducadas fuera del hub y la API.
         ValidateIssuerSigningKey = true,
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
         ClockSkew = TimeSpan.FromMinutes(1)
@@ -87,7 +89,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         {
             var accessToken = context.Request.Query["access_token"];
             var path = context.HttpContext.Request.Path;
-            // Verifica que la petición vaya al Hub de órdenes
+            // Verifica que la peticion vaya al hub de ordenes.
+            // SignalR envia el token por query string durante la negociacion del hub.
             if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/ordersHub"))
             {
                 context.Token = accessToken;
@@ -112,9 +115,11 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                     .Where(role => !string.IsNullOrWhiteSpace(role))
                     .Distinct())
                 {
+                    // Normaliza roles para evitar variantes con mayusculas y espacios.
                     identity.AddClaim(new Claim(ClaimTypes.Role, role!));
                 }
 
+                // La sesion valida exige usuario activo y el mismo sid persistido en BD.
                 if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(sessionId))
                 {
                     context.Fail("Session invalid");
@@ -142,8 +147,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 
-// --- SIGNALR ESTABLE ---
-// NOTA: Requiere el paquete NuGet: Microsoft.AspNetCore.SignalR.Protocols.NewtonsoftJson
+// SignalR comparte serializacion con la API y ajusta keepalive para pantallas largas.
 builder.Services.AddSignalR(options =>
 {
     options.EnableDetailedErrors = builder.Environment.IsDevelopment();
@@ -151,11 +155,11 @@ builder.Services.AddSignalR(options =>
 })
 .AddNewtonsoftJsonProtocol(options => 
 {
-    // El nombre correcto es PayloadSerializerSettings
     options.PayloadSerializerSettings.ContractResolver = new CamelCasePropertyNamesContractResolver();
     options.PayloadSerializerSettings.Converters.Add(new Newtonsoft.Json.Converters.StringEnumConverter());
 });
-// --- CORS ---
+
+// CORS acepta lista via env var o configuracion estructurada.
 var allowedOrigins = (
         builder.Configuration["CORS_ORIGINS"]?.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
         ?? builder.Configuration["Cors:OriginsCsv"]?.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
@@ -173,7 +177,7 @@ builder.Services.AddCors(options =>
     {
         if (builder.Environment.IsDevelopment())
         {
-            // En desarrollo: permitir cualquier origen
+            // Desarrollo local flexible para Vite y multiples puertos.
             policy.SetIsOriginAllowed(_ => true)
                   .AllowAnyHeader()
                   .AllowAnyMethod()
@@ -190,7 +194,7 @@ builder.Services.AddCors(options =>
     });
 });
 
-//--conexion Temporal
+// Mongo se resuelve desde entorno y cae a local para desarrollo rapido.
 var connectionString = builder.Configuration["MongoDbSettings:ConnectionString"] 
     ?? "mongodb://localhost:27017";
 
@@ -229,7 +233,7 @@ builder.Services.AddScoped<IAnalyticsService>(sp =>
 
 var app = builder.Build();
 
-// --- MIDDLEWARE PIPELINE ---
+// Pipeline HTTP principal.
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -240,7 +244,7 @@ else
     app.UseHsts();
 }
 
-// --- SECURITY HEADERS MIDDLEWARE ---
+// Endurecimiento HTTP minimo para las pantallas operativas expuestas por navegador.
 app.Use(async (context, next) =>
 {
     context.Response.Headers.TryAdd("X-Content-Type-Options", "nosniff");
@@ -249,6 +253,7 @@ app.Use(async (context, next) =>
     context.Response.Headers.TryAdd("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
     
     // CSP Header para mitigación de XSS
+    // En desarrollo tolera Vite; en produccion se endurece para la SPA publicada.
     var cspHeader = app.Environment.IsDevelopment()
         ? "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:"
         : "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; font-src 'self' data:";
@@ -260,19 +265,20 @@ app.Use(async (context, next) =>
 app.UseForwardedHeaders();
 app.UseStaticFiles();
 
-// --- GLOBAL EXCEPTION HANDLER ---
+// Convierte excepciones no controladas en respuestas HTTP consistentes.
 app.UseGlobalExceptionHandler();
 
-app.UseCors("AllowAll"); // CORS siempre antes de Auth
+app.UseCors("AllowAll");
 
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 
+// El hub comparte autenticacion y queda disponible para las vistas operativas.
 app.MapControllers();
 app.MapHub<OrdersHub>("/ordersHub");
 
-// --- SEEDER ---
+// Seed idempotente para catalogo base, mesas y usuarios de desarrollo.
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;

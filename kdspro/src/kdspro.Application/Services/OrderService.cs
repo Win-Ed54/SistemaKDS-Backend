@@ -6,15 +6,26 @@ using kdspro.Domain.Interfaces;
 
 namespace kdspro.Application.Services;
 
+/// <summary>
+/// Orquesta el flujo completo de pedidos: validaciones, reserva de stock,
+/// cambios de estado, cobro parcial y notificaciones en tiempo real.
+/// </summary>
 public class OrderService : IOrderService
 {
     private const decimal TaxRate = 0.13m;
+    /// <summary>
+    /// Catalogo de metodos admitidos por caja para evitar valores arbitrarios
+    /// entre frontend, backend y reportes.
+    /// </summary>
     private static readonly HashSet<string> AllowedPaymentMethods = new(StringComparer.OrdinalIgnoreCase)
     {
         "efectivo",
         "tarjeta",
         "transferencia",
     };
+    /// <summary>
+    /// Tipos de comprobante soportados por el flujo de cobro.
+    /// </summary>
     private static readonly HashSet<string> AllowedDocumentTypes = new(StringComparer.OrdinalIgnoreCase)
     {
         "ticket",
@@ -53,6 +64,10 @@ public class OrderService : IOrderService
         _settingsService = settingsService;
     }
 
+    /// <summary>
+    /// Crea una orden validando reglas operativas, reservando ingredientes
+    /// y descontando productos antes de notificar al resto de vistas.
+    /// </summary>
     public async Task<OrderDto> CreateOrder(CreateOrderDto dto, string userId, string username)
     {
         var settings = await _settingsService.GetAsync();
@@ -112,6 +127,7 @@ public class OrderService : IOrderService
             .ToDictionary(ingredient => ingredient.Id!, ingredient => ingredient, StringComparer.OrdinalIgnoreCase);
         var aggregatedIngredientDemand = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
 
+        // Primero validamos disponibilidad real de productos e ingredientes sin tocar stock.
         foreach (var item in dto.Items)
         {
             var product = await _productRepository.GetByIdAsync(item.ProductId);
@@ -141,6 +157,7 @@ public class OrderService : IOrderService
             productsById[item.ProductId] = product;
         }
 
+        // Luego reservamos ingredientes antes de descontar productos para evitar sobreventa.
         foreach (var entry in aggregatedIngredientDemand)
         {
             if (!ingredientsById.TryGetValue(entry.Key, out var ingredient) || ingredient == null || !ingredient.IsActive)
@@ -181,6 +198,7 @@ public class OrderService : IOrderService
             });
         }
 
+        // Con ingredientes reservados, descontamos stock de productos visibles en UI.
         foreach (var item in dto.Items)
         {
             var success = await _productRepository.DeductStockAsync(item.ProductId, item.Quantity);
@@ -256,6 +274,7 @@ public class OrderService : IOrderService
 
         var resultDto = MapToDto(order);
 
+        // El flujo de para llevar puede quedarse en caja antes de publicarse a cocina.
         if (requiresTakeoutPrepayment)
         {
             await _notificationService.NotifyPendingPrepaymentOrder(resultDto);
@@ -276,6 +295,7 @@ public class OrderService : IOrderService
 
     public async Task SetPreparing(string orderId, string preparedByName)
     {
+        // StartedAt se llena al entrar a preparacion; ReadyAt permanece intacto.
         await _orderRepository.UpdateStatusWithTimeAsync(
             orderId,
             OrderStatus.Preparing,
@@ -292,6 +312,7 @@ public class OrderService : IOrderService
 
     public async Task SetReady(string orderId, string preparedByName)
     {
+        // Solo marcamos ReadyAt para conservar el inicio original de preparacion.
         await _orderRepository.UpdateStatusWithTimeAsync(
             orderId,
             OrderStatus.Ready,
@@ -308,6 +329,7 @@ public class OrderService : IOrderService
 
     public async Task SetFinished(string orderId)
     {
+        // La entrega saca la orden de cocina, pero no necesariamente la deja cobrada.
         await _orderRepository.UpdateStatusAsync(orderId, OrderStatus.Delivered);
 
         var order = await GetOrderById(orderId);
@@ -345,6 +367,7 @@ public class OrderService : IOrderService
         if (!AllowedDocumentTypes.Contains(documentType))
             throw new InvalidOperationException("Tipo de comprobante no permitido.");
 
+        // Si caja no manda lineas puntuales, se cobra todo lo pendiente.
         var requestedPayments = dto.ItemPayments?
             .Where(item => item.Quantity > 0)
             .ToList() ?? [];
@@ -364,6 +387,7 @@ public class OrderService : IOrderService
         if (requestedPayments.Count == 0)
             throw new InvalidOperationException("No hay productos pendientes por cobrar en esta orden.");
 
+        // Validamos primero todas las lineas para no dejar la orden a medio actualizar.
         foreach (var payment in requestedPayments)
         {
             if (payment.LineIndex < 0 || payment.LineIndex >= order.Items.Count)
@@ -382,6 +406,7 @@ public class OrderService : IOrderService
             }
         }
 
+        // Aplicamos cantidades cobradas una vez que toda la solicitud es valida.
         foreach (var payment in requestedPayments)
         {
             order.Items[payment.LineIndex].PaidQuantity += payment.Quantity;
@@ -416,12 +441,14 @@ public class OrderService : IOrderService
 
     public async Task CloseTable(int tableNumber, string? requesterUserId = null, bool isAdmin = false)
     {
+        // El cierre de mesa es el final del ciclo operativo, no solo del pago.
         if (await _orderRepository.HasActiveOrdersForTableAsync(tableNumber, string.Empty))
             throw new InvalidOperationException($"La mesa {tableNumber} todavia tiene ordenes activas.");
 
         if (await _orderRepository.HasPendingPaymentForTableAsync(tableNumber))
             throw new InvalidOperationException($"La mesa {tableNumber} tiene cobros pendientes.");
 
+        // La limpieza solo puede cerrarse sobre la ultima orden pagada sin otra mas reciente.
         var cleanupCandidate = (await _orderRepository.GetHistoryAsync())
             .Where(o => o.TableNumber == tableNumber)
             .Where(o => o.Status == OrderStatus.Delivered && o.IsPaid && !o.IsCleanupCompleted)
@@ -455,6 +482,7 @@ public class OrderService : IOrderService
         var allOrders = await _orderRepository.GetOrdersByWaiterAsync(waiterId);
         var today = DateTime.UtcNow.Date;
 
+        // Se filtra en UTC porque todas las marcas de tiempo de orden se guardan en UTC.
         return allOrders
             .Where(o => o.CreatedAt >= today)
             .OrderByDescending(o => o.CreatedAt)
@@ -462,6 +490,10 @@ public class OrderService : IOrderService
             .ToList();
     }
 
+    /// <summary>
+    /// Resume la operacion del mesero: ordenes creadas, activas y mesas que
+    /// todavia requieren limpieza para liberarse.
+    /// </summary>
     public async Task<WaiterSummaryDto> GetWaiterSummary(string userId, string username)
     {
         var allOrders = await _orderRepository.GetOrdersByWaiterAsync(userId);
@@ -518,6 +550,7 @@ public class OrderService : IOrderService
         await _orderRepository.UpdateStatusAsync(orderId, OrderStatus.Cancelled);
         await _orderRepository.SetCancelledByAsync(orderId, cancelledByName);
 
+        // La cancelacion devuelve stock de productos y notifica el nuevo saldo visible.
         foreach (var item in order.Items)
         {
             await _productRepository.RestoreStockAsync(item.ProductId, item.Quantity);
@@ -528,6 +561,7 @@ public class OrderService : IOrderService
                 await _notificationService.NotifyStockUpdated(item.ProductId, updated.Stock);
         }
 
+        // Ordenes antiguas pueden no traer reservas persistidas; se reconstruyen si hace falta.
         var ingredientReservations = order.IngredientReservations?.Count > 0
             ? order.IngredientReservations
             : await BuildIngredientReservationsFallbackAsync(order);
@@ -556,6 +590,7 @@ public class OrderService : IOrderService
 
     private async Task<bool> HasPendingCleanupForTableAsync(int tableNumber)
     {
+        // Reutiliza la misma regla de "ultima orden pagada sin reemplazo posterior".
         var cleanupCandidate = (await _orderRepository.GetHistoryAsync())
             .Where(o => o.TableNumber == tableNumber)
             .Where(o => o.Status == OrderStatus.Delivered && o.IsPaid && !o.IsCleanupCompleted)
@@ -574,6 +609,7 @@ public class OrderService : IOrderService
 
     private async Task<List<OrderIngredientReservation>> BuildIngredientReservationsFallbackAsync(Order order)
     {
+        // Compatibilidad con ordenes antiguas que no persistieron reservas de ingredientes.
         var reservations = new Dictionary<string, OrderIngredientReservation>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var item in order.Items)
@@ -633,6 +669,7 @@ public class OrderService : IOrderService
     {
         var settings = await _settingsService.GetAsync();
 
+        // Cuando el takeout exige prepago, cocina no debe ver la orden hasta que caja la habilite.
         return (await _orderRepository.GetActiveOrdersAsync())
             .Where(order =>
                 !(settings.TakeoutRequirePrepayment &&
@@ -647,6 +684,7 @@ public class OrderService : IOrderService
         var settings = await _settingsService.GetAsync();
         var history = await _orderRepository.GetHistoryAsync();
 
+        // Para caja, los pedidos takeout pendientes de prepago tambien cuentan como historial operativo.
         if (settings.TakeoutRequirePrepayment)
         {
             var takeoutPendingPayment = (await _orderRepository.GetActiveOrdersAsync())
@@ -673,6 +711,7 @@ public class OrderService : IOrderService
     {
         if (string.IsNullOrWhiteSpace(destination)) return AllowedTakeoutDestinations[0];
 
+        // Se admite "Mesa N" para pedidos que salen de una mesa pero terminan como para llevar.
         if (destination.Trim().StartsWith("Mesa ", StringComparison.OrdinalIgnoreCase) &&
             int.TryParse(destination.Trim()[5..], out var tableNumber) &&
             tableNumber > 0)
@@ -689,6 +728,10 @@ public class OrderService : IOrderService
         return allowedDestination;
     }
 
+    /// <summary>
+    /// Traduce la entidad de dominio a DTO con los campos derivados que consume
+    /// la UI, como montos pendientes y cantidades ya cobradas por linea.
+    /// </summary>
     private static OrderDto MapToDto(Order order) => new()
     {
         Id = order.Id!,

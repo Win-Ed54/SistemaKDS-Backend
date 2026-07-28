@@ -6,6 +6,10 @@ using MongoDB.Driver;
 
 namespace kdspro.Application.Services;
 
+/// <summary>
+/// Construye indicadores de ventas a partir de ordenes entregadas usando
+/// agregaciones en memoria sobre los resultados filtrados de MongoDB.
+/// </summary>
 public class AnalyticsService : IAnalyticsService
 {
     private readonly IMongoCollection<Order> _ordersCollection;
@@ -23,6 +27,9 @@ public class AnalyticsService : IAnalyticsService
         return await GetAnalyticsForDateRange(startDate, endDate);
     }
 
+    /// <summary>
+    /// Calcula el resumen semanal tomando como referencia la semana ISO iniciada en lunes.
+    /// </summary>
     public async Task<WeeklyRevenueDto> GetWeeklyAnalytics(int weekNumber, int year)
     {
         var jan4 = new DateTime(year, 1, 4);
@@ -62,6 +69,7 @@ public class AnalyticsService : IAnalyticsService
         var endDate = DateTime.UtcNow.Date;
         var startDate = endDate.AddDays(-30);
 
+        // Solo considera ordenes entregadas para que el ingreso coincida con operacion completada.
         var orders = await _ordersCollection
             .Find(o => o.CreatedAt >= startDate && o.CreatedAt < endDate.AddDays(1) && o.Status == OrderStatus.Delivered)
             .ToListAsync();
@@ -83,6 +91,7 @@ public class AnalyticsService : IAnalyticsService
 
     private async Task<RevenueAnalyticsDto> GetAnalyticsForDateRange(DateTime startDate, DateTime endDate)
     {
+        // El rango es semiabierto: incluye startDate y excluye endDate.
         var orders = await _ordersCollection
             .Find(o => o.CreatedAt >= startDate && o.CreatedAt < endDate && o.Status == OrderStatus.Delivered)
             .ToListAsync();
