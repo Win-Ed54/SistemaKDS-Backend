@@ -9,6 +9,9 @@
 *.userosscache
 *.sln.docstates
 .env
+.env.*
+!.env.example
+.npmrc
 
 # --- Archivos de Configuración de la App (Secretos) ---
 # Se recomienda no subir el appsettings con contraseñas reales
@@ -17,6 +20,10 @@
 
 # --- Paquetes y Dependencias ---
 *.nupkg
+appsettings.Local.json
+appsettings.Production.json
+appsettings.*.local.json
+*.Development.local.json
 .tools/
 .pnpm-debug.log*
 
